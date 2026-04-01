@@ -1,0 +1,13 @@
+{
+  "name": "@farm-os/db",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "seed": "node seed.js",
+    "migrate": "psql $DATABASE_URL -f migrations/001_initial_schema.sql"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "pg": "^8.12.0"
+  }
+}

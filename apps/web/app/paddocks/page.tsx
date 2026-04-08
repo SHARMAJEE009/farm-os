@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Map, Pencil, Trash2, MapPin } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -8,9 +9,22 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import type { Paddock } from '@/types';
+import type { Paddock, Farm } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
+
+// Dynamically import the map to avoid SSR issues with Leaflet
+const MapPicker = dynamic(
+  () => import('@/components/ui/MapPicker').then(m => m.MapPicker),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[220px] bg-gray-100 rounded-xl animate-pulse flex items-center justify-center">
+        <span className="text-sm text-gray-400">Loading map…</span>
+      </div>
+    ),
+  }
+);
 
 interface PaddockForm {
   name: string;
@@ -29,29 +43,56 @@ export default function PaddocksPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Paddock | null>(null);
 
+  // Fetch paddocks
   const { data: paddocks, isLoading } = useQuery<Paddock[]>({
     queryKey: ['paddocks'],
     queryFn: () => api.get('/paddocks').then(r => r.data),
   });
 
-  const { register, handleSubmit, reset, setValue } = useForm<PaddockForm>();
+  // Fetch farms to get farm_id for new paddocks
+  const { data: farms } = useQuery<Farm[]>({
+    queryKey: ['farms'],
+    queryFn: () => api.get('/farms').then(r => r.data),
+  });
+  const defaultFarmId = farms?.[0]?.id ?? '';
 
-  const toPayload = (d: PaddockForm) => ({
-    ...d,
-    area_hectares: d.area_hectares ? parseFloat(d.area_hectares) : null,
-    land_area: d.land_area ? parseFloat(d.land_area) : null,
+  const { register, handleSubmit, reset, setValue, control } = useForm<PaddockForm>();
+
+  // Watch land_area and auto-fill area_hectares
+  const watchedLandArea = useWatch({ control, name: 'land_area' });
+  useEffect(() => {
+    if (watchedLandArea) {
+      setValue('area_hectares', watchedLandArea);
+    }
+  }, [watchedLandArea, setValue]);
+
+  // Watch lat/lng for the map marker
+  const watchedLat = useWatch({ control, name: 'latitude' });
+  const watchedLng = useWatch({ control, name: 'longitude' });
+  const mapLat = watchedLat ? parseFloat(watchedLat) : null;
+  const mapLng = watchedLng ? parseFloat(watchedLng) : null;
+
+  const toPayload = (d: PaddockForm, farmId: string) => ({
+    farm_id: farmId,
+    name: d.name,
+    crop_type: d.crop_type || null,
+    country: d.country || null,
+    city: d.city || null,
     latitude: d.latitude ? parseFloat(d.latitude) : null,
     longitude: d.longitude ? parseFloat(d.longitude) : null,
+    area_hectares: d.area_hectares ? parseFloat(d.area_hectares) : null,
+    land_area: d.land_area ? parseFloat(d.land_area) : null,
+    description: d.description || null,
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: PaddockForm) => api.post('/paddocks', toPayload(d)),
+    mutationFn: (d: PaddockForm) => api.post('/paddocks', toPayload(d, defaultFarmId)),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['paddocks'] }); closeModal(); },
   });
 
   const updateMutation = useMutation({
     mutationFn: (d: PaddockForm) =>
-      api.patch(`/paddocks/${editItem!.id}`, toPayload(d)),
+      api.patch(`/paddocks/${editItem!.id}`, toPayload(d, editItem!.farm_id)),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['paddocks'] }); closeModal(); },
   });
 
@@ -79,6 +120,13 @@ export default function PaddocksPage() {
   const onSubmit = (d: PaddockForm) => {
     editItem ? updateMutation.mutate(d) : createMutation.mutate(d);
   };
+
+  const handleMapSelect = (lat: number, lng: number) => {
+    setValue('latitude', lat.toString());
+    setValue('longitude', lng.toString());
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <AppLayout>
@@ -137,7 +185,7 @@ export default function PaddocksPage() {
                   {p.area_hectares && (
                     <p className="text-sm text-gray-500">Area: {p.area_hectares} ha</p>
                   )}
-                  {(p.latitude != null && p.longitude != null) && (
+                  {p.latitude != null && p.longitude != null && (
                     <p className="text-xs text-gray-400">
                       {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
                     </p>
@@ -166,16 +214,30 @@ export default function PaddocksPage() {
           open={modalOpen}
           onClose={closeModal}
           title={editItem ? 'Edit Paddock' : 'Add Paddock'}
+          className="max-w-xl"
         >
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/* Name */}
             <div>
               <label className="label">Paddock Name *</label>
-              <input className="input" placeholder="e.g. North Block" {...register('name', { required: true })} />
+              <input
+                className="input"
+                placeholder="e.g. North Block"
+                {...register('name', { required: true })}
+              />
             </div>
+
+            {/* Crop type */}
             <div>
               <label className="label">Crop Type</label>
-              <input className="input" placeholder="e.g. Wheat, Canola, Barley" {...register('crop_type')} />
+              <input
+                className="input"
+                placeholder="e.g. Wheat, Canola, Barley"
+                {...register('crop_type')}
+              />
             </div>
+
+            {/* Country / City */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Country</label>
@@ -186,39 +248,80 @@ export default function PaddocksPage() {
                 <input className="input" placeholder="e.g. Perth" {...register('city')} />
               </div>
             </div>
+
+            {/* Map picker */}
+            <div>
+              <label className="label">
+                Location — click the map to pin coordinates
+              </label>
+              <MapPicker lat={mapLat} lng={mapLng} onSelect={handleMapSelect} />
+            </div>
+
+            {/* Lat / Lng (editable — also updated by map click) */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Latitude</label>
-                <input className="input" type="number" step="any" placeholder="e.g. -31.9505" {...register('latitude')} />
+                <input
+                  className="input"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. -31.9505"
+                  {...register('latitude')}
+                />
               </div>
               <div>
                 <label className="label">Longitude</label>
-                <input className="input" type="number" step="any" placeholder="e.g. 115.8605" {...register('longitude')} />
+                <input
+                  className="input"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 115.8605"
+                  {...register('longitude')}
+                />
               </div>
             </div>
+
+            {/* Land Area → auto-fills Area (hectares) */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Land Area (ha)</label>
-                <input className="input" type="number" step="0.1" placeholder="e.g. 100.0" {...register('land_area')} />
+                <input
+                  className="input"
+                  type="number"
+                  step="0.1"
+                  placeholder="e.g. 100.0"
+                  {...register('land_area')}
+                />
               </div>
               <div>
                 <label className="label">Area (hectares)</label>
-                <input className="input" type="number" step="0.1" placeholder="e.g. 45.5" {...register('area_hectares')} />
+                <input
+                  className="input"
+                  type="number"
+                  step="0.1"
+                  placeholder="Auto-filled from Land Area"
+                  {...register('area_hectares')}
+                />
               </div>
             </div>
+
+            {/* Description */}
             <div>
               <label className="label">Description</label>
               <textarea
                 className="input"
                 rows={3}
-                placeholder="e.g. North-facing block with sandy loam soil..."
+                placeholder="e.g. North-facing block with sandy loam soil…"
                 {...register('description')}
               />
             </div>
+
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={closeModal} className="btn-secondary flex-1">Cancel</button>
-              <button type="submit" className="btn-primary flex-1">
-                {editItem ? 'Save Changes' : 'Create Paddock'}
+              <button type="button" onClick={closeModal} className="btn-secondary flex-1">
+                Cancel
+              </button>
+              <button type="submit" disabled={isPending} className="btn-primary flex-1">
+                {isPending ? 'Saving…' : editItem ? 'Save Changes' : 'Create Paddock'}
               </button>
             </div>
           </form>

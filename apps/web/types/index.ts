@@ -108,6 +108,11 @@ export interface FinancialTransaction {
   amount: number;
   created_at: string;
   paddock?: Paddock;
+  // Enriched fields
+  product_name?: string | null;
+  supplier_name?: string | null;
+  staff_name?: string | null;
+  fuel_litres?: number | null;
 }
 
 // API response wrappers
@@ -142,4 +147,78 @@ export interface DashboardStats {
   pending_recommendations: number;
   pending_orders: number;
   recent_transactions: FinancialTransaction[];
+}
+
+// Forecasting types
+export interface ForecastingMonth {
+  month: string;
+  labour: number;
+  fuel: number;
+  supplier: number;
+  total: number;
+  projected: boolean;
+}
+
+export interface ForecastingData {
+  monthly: ForecastingMonth[];
+  paddock_monthly: Array<{
+    paddock_id: string;
+    paddock_name: string;
+    month: string;
+    total: number;
+  }>;
+  projection_basis: string;
+}
+
+// Benchmarking types
+export interface BenchmarkPaddock {
+  id: string;
+  name: string;
+  area_hectares: number | null;
+  crop_type: string | null;
+  labour_cost: number;
+  fuel_cost: number;
+  supplier_cost: number;
+  total_cost: number;
+  cost_per_hectare: number | null;
+  percentile: number | null;
+  labour_pct: number;
+  fuel_pct: number;
+  supplier_pct: number;
+}
+
+export interface BenchmarkingData {
+  paddocks: BenchmarkPaddock[];
+  industry_benchmark: {
+    cost_per_hectare: number;
+    labour_pct: number;
+    fuel_pct: number;
+    supplier_pct: number;
+  };
+}
+
+// News types
+export interface NewsItem {
+  title: string;
+  description: string;
+  url: string;
+  pubDate: string;
+  author: string;
+  thumbnail: string | null;
+  category: string;
+  source: string;
+}
+
+export interface NewsResponse {
+  items: NewsItem[];
+  count: number;
+  cached_at: string;
+}
+
+// Chatbot types
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
 }

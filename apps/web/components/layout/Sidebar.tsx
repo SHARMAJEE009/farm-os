@@ -13,18 +13,36 @@ import {
   Menu,
   X,
   Tractor,
+  MessageSquare,
+  Newspaper,
+  TrendingUp,
+  BarChart3,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Cookies from 'js-cookie';
 
-const navItems = [
-  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/paddocks',    label: 'Paddocks',     icon: Map },
-  { href: '/staff',       label: 'Staff',        icon: Users },
-  { href: '/agronomist',  label: 'Agronomy',     icon: Leaf },
-  { href: '/supplier',    label: 'Supplier',     icon: ShoppingCart },
-  { href: '/finance',     label: 'Finance',      icon: DollarSign },
+const navSections = [
+  {
+    label: 'Operations',
+    items: [
+      { href: '/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
+      { href: '/paddocks',     label: 'Paddocks',      icon: Map },
+      { href: '/staff',        label: 'Staff',         icon: Users },
+      { href: '/agronomist',   label: 'Agronomy',      icon: Leaf },
+      { href: '/supplier',     label: 'Supplier',      icon: ShoppingCart },
+      { href: '/finance',      label: 'Finance',       icon: DollarSign },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { href: '/forecasting',  label: 'Forecasting',   icon: TrendingUp },
+      { href: '/benchmarking', label: 'Benchmarking',  icon: BarChart3 },
+      { href: '/news',         label: 'News',          icon: Newspaper },
+      { href: '/chatbot',      label: 'AI Assistant',  icon: MessageSquare },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -51,26 +69,35 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active
-                  ? 'bg-farm-600 text-white'
-                  : 'text-farm-300 hover:text-white hover:bg-farm-700/50'
-              )}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {navSections.map((section) => (
+          <div key={section.label}>
+            <p className="px-3 mb-1.5 text-xs font-semibold text-farm-500 uppercase tracking-wider">
+              {section.label}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map(({ href, label, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      active
+                        ? 'bg-farm-600 text-white'
+                        : 'text-farm-300 hover:text-white hover:bg-farm-700/50'
+                    )}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Logout */}

@@ -12,6 +12,8 @@ import { SupplierOrdersModule } from './modules/supplier-orders/supplier-orders.
 import { PaymentsModule } from './modules/payments/payments.module';
 import { FinancialTransactionsModule } from './modules/financial-transactions/financial-transactions.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { NewsModule } from './modules/news/news.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     PaymentsModule,
     FinancialTransactionsModule,
     DashboardModule,
+    NewsModule,
+    ChatbotModule,
   ],
 })
 export class AppModule {}

@@ -19,9 +19,21 @@ export class FinancialTransactionsService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
   async findAll(paddockId?: string, source?: string) {
-    let sql = `SELECT ft.*, p.name as paddock_name
-               FROM financial_transactions ft
-               LEFT JOIN paddocks p ON p.id = ft.paddock_id`;
+    let sql = `
+      SELECT ft.*,
+        p.name as paddock_name,
+        CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
+        CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
+        CASE WHEN ft.source = 'labour' THEN labour_user.name END as staff_name,
+        CASE WHEN ft.source = 'fuel' THEN fl.litres END as fuel_litres
+      FROM financial_transactions ft
+      LEFT JOIN paddocks p ON p.id = ft.paddock_id
+      LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
+      LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
+      LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
+      LEFT JOIN users labour_user ON labour_user.id = ts.user_id
+      LEFT JOIN fuel_logs fl ON fl.id = ft.reference_id AND ft.source = 'fuel'
+    `;
     const params: any[] = [];
     const conds: string[] = [];
     if (paddockId) { params.push(paddockId); conds.push(`ft.paddock_id = $${params.length}`); }
@@ -32,6 +44,10 @@ export class FinancialTransactionsService {
     return rows.map(r => ({
       ...r,
       paddock: r.paddock_name ? { id: r.paddock_id, name: r.paddock_name } : null,
+      product_name: r.product_name ?? null,
+      supplier_name: r.supplier_name ?? null,
+      staff_name: r.staff_name ?? null,
+      fuel_litres: r.fuel_litres ? parseFloat(r.fuel_litres) : null,
     }));
   }
 

@@ -4,7 +4,7 @@ import { DATABASE_POOL } from '../../common/database/database.module';
 import { IsUUID, IsNumber, IsString, IsOptional, Min } from 'class-validator';
 
 export class CreateTimesheetDto {
-  @IsUUID() user_id: string;
+  @IsOptional() @IsUUID() user_id?: string;
   @IsUUID() paddock_id: string;
   @IsNumber() @Min(0.5) hours: number;
   @IsNumber() @Min(0) hourly_rate: number;

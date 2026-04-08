@@ -22,9 +22,17 @@ export class DashboardService {
       this.db.query(`SELECT COUNT(*) FROM recommendations WHERE status='draft'`),
       this.db.query(`SELECT COUNT(*) FROM supplier_orders WHERE status='pending'`),
       this.db.query(`
-        SELECT ft.*, p.name as paddock_name
+        SELECT ft.*,
+          p.name as paddock_name,
+          CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
+          CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
+          CASE WHEN ft.source = 'labour' THEN labour_user.name END as staff_name
         FROM financial_transactions ft
         LEFT JOIN paddocks p ON p.id = ft.paddock_id
+        LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
+        LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
+        LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
+        LEFT JOIN users labour_user ON labour_user.id = ts.user_id
         ORDER BY ft.created_at DESC LIMIT 10
       `),
     ]);
@@ -39,6 +47,9 @@ export class DashboardService {
       recent_transactions: recentTx.rows.map(r => ({
         ...r,
         paddock: r.paddock_name ? { id: r.paddock_id, name: r.paddock_name } : null,
+        product_name: r.product_name ?? null,
+        supplier_name: r.supplier_name ?? null,
+        staff_name: r.staff_name ?? null,
       })),
     };
   }
@@ -74,6 +85,129 @@ export class DashboardService {
 
     return summaries;
   }
+
+  async getForecasting() {
+    // Historical monthly data for last 12 months grouped by source
+    const { rows: monthly } = await this.db.query(`
+      SELECT
+        TO_CHAR(date_trunc('month', created_at), 'YYYY-MM') as month,
+        SUM(CASE WHEN source = 'labour' THEN amount ELSE 0 END) as labour,
+        SUM(CASE WHEN source = 'fuel' THEN amount ELSE 0 END) as fuel,
+        SUM(CASE WHEN source = 'supplier' THEN amount ELSE 0 END) as supplier,
+        SUM(amount) as total
+      FROM financial_transactions
+      WHERE created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY date_trunc('month', created_at)
+      ORDER BY date_trunc('month', created_at) ASC
+    `);
+
+    const historical = monthly.map(r => ({
+      month: r.month,
+      labour: parseFloat(r.labour),
+      fuel: parseFloat(r.fuel),
+      supplier: parseFloat(r.supplier),
+      total: parseFloat(r.total),
+      projected: false,
+    }));
+
+    // Compute 3-month average for projection
+    const last3 = historical.slice(-3);
+    const avgLabour   = last3.length ? last3.reduce((s, r) => s + r.labour, 0)   / last3.length : 0;
+    const avgFuel     = last3.length ? last3.reduce((s, r) => s + r.fuel, 0)     / last3.length : 0;
+    const avgSupplier = last3.length ? last3.reduce((s, r) => s + r.supplier, 0) / last3.length : 0;
+
+    // Project next 3 months
+    const projected = [];
+    const now = new Date();
+    for (let i = 1; i <= 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      projected.push({
+        month: monthStr,
+        labour: Math.round(avgLabour * 100) / 100,
+        fuel: Math.round(avgFuel * 100) / 100,
+        supplier: Math.round(avgSupplier * 100) / 100,
+        total: Math.round((avgLabour + avgFuel + avgSupplier) * 100) / 100,
+        projected: true,
+      });
+    }
+
+    // Paddock monthly totals
+    const { rows: paddockMonthly } = await this.db.query(`
+      SELECT
+        ft.paddock_id,
+        p.name as paddock_name,
+        TO_CHAR(date_trunc('month', ft.created_at), 'YYYY-MM') as month,
+        SUM(ft.amount) as total
+      FROM financial_transactions ft
+      LEFT JOIN paddocks p ON p.id = ft.paddock_id
+      WHERE ft.created_at >= NOW() - INTERVAL '6 months'
+      GROUP BY ft.paddock_id, p.name, date_trunc('month', ft.created_at)
+      ORDER BY ft.paddock_id, date_trunc('month', ft.created_at)
+    `);
+
+    return {
+      monthly: [...historical, ...projected],
+      paddock_monthly: paddockMonthly.map(r => ({
+        paddock_id: r.paddock_id,
+        paddock_name: r.paddock_name,
+        month: r.month,
+        total: parseFloat(r.total),
+      })),
+      projection_basis: 'trailing_3_month_average',
+    };
+  }
+
+  async getBenchmarking() {
+    const { rows } = await this.db.query(`
+      SELECT
+        p.id, p.name, p.area_hectares, p.crop_type,
+        COALESCE(SUM(CASE WHEN ft.source = 'labour' THEN ft.amount ELSE 0 END), 0) as labour_cost,
+        COALESCE(SUM(CASE WHEN ft.source = 'fuel' THEN ft.amount ELSE 0 END), 0) as fuel_cost,
+        COALESCE(SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END), 0) as supplier_cost,
+        COALESCE(SUM(ft.amount), 0) as total_cost
+      FROM paddocks p
+      LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
+      GROUP BY p.id, p.name, p.area_hectares, p.crop_type
+      ORDER BY total_cost DESC
+    `);
+
+    const paddocks = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      area_hectares: r.area_hectares ? parseFloat(r.area_hectares) : null,
+      crop_type: r.crop_type,
+      labour_cost: parseFloat(r.labour_cost),
+      fuel_cost: parseFloat(r.fuel_cost),
+      supplier_cost: parseFloat(r.supplier_cost),
+      total_cost: parseFloat(r.total_cost),
+      cost_per_hectare: r.area_hectares && parseFloat(r.area_hectares) > 0
+        ? Math.round(parseFloat(r.total_cost) / parseFloat(r.area_hectares) * 100) / 100
+        : null,
+    }));
+
+    // Assign percentile scores based on cost per hectare (lower cost = higher score)
+    const withHa = paddocks.filter(p => p.cost_per_hectare !== null).sort((a, b) => a.cost_per_hectare - b.cost_per_hectare);
+    const result = paddocks.map(p => {
+      const rank = withHa.findIndex(x => x.id === p.id);
+      const percentile = withHa.length > 1 && rank >= 0
+        ? Math.round((1 - rank / (withHa.length - 1)) * 100)
+        : null;
+      const total = p.total_cost;
+      return {
+        ...p,
+        percentile,
+        labour_pct: total > 0 ? Math.round(p.labour_cost / total * 100) : 0,
+        fuel_pct:   total > 0 ? Math.round(p.fuel_cost   / total * 100) : 0,
+        supplier_pct: total > 0 ? Math.round(p.supplier_cost / total * 100) : 0,
+      };
+    });
+
+    // Industry benchmark (Australian broadacre average)
+    const industryBenchmark = { cost_per_hectare: 320, labour_pct: 35, fuel_pct: 25, supplier_pct: 40 };
+
+    return { paddocks: result, industry_benchmark: industryBenchmark };
+  }
 }
 
 @ApiTags('dashboard')
@@ -88,6 +222,12 @@ export class DashboardController {
 
   @Get('paddock-summaries')
   getPaddockSummaries() { return this.service.getPaddockSummaries(); }
+
+  @Get('forecasting')
+  getForecasting() { return this.service.getForecasting(); }
+
+  @Get('benchmarking')
+  getBenchmarking() { return this.service.getBenchmarking(); }
 }
 
 @Module({ controllers: [DashboardController], providers: [DashboardService] })

@@ -2,20 +2,21 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Clock, Fuel, Trash2 } from 'lucide-react';
+import { Plus, Clock, Fuel, Trash2, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { Timesheet, FuelLog, Paddock } from '@/types';
+import type { Timesheet, FuelLog, Paddock, User } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
 
 type Tab = 'timesheets' | 'fuel';
 
 interface TimesheetForm {
+  user_id?: string;
   paddock_id: string;
   hours: string;
   hourly_rate: string;
@@ -50,19 +51,42 @@ export default function StaffPage() {
     queryFn: () => api.get('/paddocks').then(r => r.data),
   });
 
+  const { data: staffUsers } = useQuery<User[]>({
+    queryKey: ['staff-users'],
+    queryFn: () => api.get('/users?role=staff').then(r => r.data),
+  });
+
   const tsForm = useForm<TimesheetForm>({ defaultValues: { date: new Date().toISOString().split('T')[0] } });
   const fuelForm = useForm<FuelForm>({ defaultValues: { date: new Date().toISOString().split('T')[0] } });
 
   const tsMutation = useMutation({
-    mutationFn: (d: TimesheetForm) =>
-      api.post('/timesheets', { ...d, hours: parseFloat(d.hours), hourly_rate: parseFloat(d.hourly_rate) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['timesheets'] }); setTsModalOpen(false); tsForm.reset(); },
+    mutationFn: (d: TimesheetForm) => {
+      const payload: any = {
+        paddock_id: d.paddock_id,
+        hours: parseFloat(d.hours),
+        hourly_rate: parseFloat(d.hourly_rate),
+        date: d.date,
+      };
+      if (d.user_id) payload.user_id = d.user_id;
+      return api.post('/timesheets', payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timesheets'] });
+      qc.invalidateQueries({ queryKey: ['financial-transactions'] });
+      setTsModalOpen(false);
+      tsForm.reset({ date: new Date().toISOString().split('T')[0] });
+    },
   });
 
   const fuelMutation = useMutation({
     mutationFn: (d: FuelForm) =>
       api.post('/fuel-logs', { ...d, litres: parseFloat(d.litres), price_per_litre: parseFloat(d.price_per_litre) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['fuel-logs'] }); setFuelModalOpen(false); fuelForm.reset(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fuel-logs'] });
+      qc.invalidateQueries({ queryKey: ['financial-transactions'] });
+      setFuelModalOpen(false);
+      fuelForm.reset({ date: new Date().toISOString().split('T')[0] });
+    },
   });
 
   const deleteTsMutation = useMutation({
@@ -121,7 +145,7 @@ export default function StaffPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Paddock', 'Date', 'Hours', 'Rate/hr', 'Total', ''].map(h => (
+                    {['Staff', 'Paddock', 'Date', 'Hours', 'Rate/hr', 'Total', ''].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -129,6 +153,7 @@ export default function StaffPage() {
                 <tbody className="divide-y divide-gray-50">
                   {timesheets.map((ts) => (
                     <tr key={ts.id} className="hover:bg-gray-50/50">
+                      <td className="px-4 py-3 text-gray-600">{ts.user?.name ?? '—'}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{ts.paddock?.name ?? ts.paddock_id}</td>
                       <td className="px-4 py-3 text-gray-500">{formatDate(ts.date)}</td>
                       <td className="px-4 py-3 text-gray-700">{ts.hours}h</td>
@@ -186,8 +211,23 @@ export default function StaffPage() {
         )}
 
         {/* Timesheet modal */}
-        <Modal open={tsModalOpen} onClose={() => setTsModalOpen(false)} title="Log Hours">
+        <Modal open={tsModalOpen} onClose={() => { setTsModalOpen(false); tsForm.reset(); }} title="Log Hours">
           <form onSubmit={tsForm.handleSubmit(d => tsMutation.mutate(d))} className="space-y-4">
+            {tsMutation.isError && (
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                Failed to save. Please check all fields and try again.
+              </div>
+            )}
+            {staffUsers && staffUsers.length > 0 && (
+              <div>
+                <label className="label">Staff Member (optional)</label>
+                <select className="input" {...tsForm.register('user_id')}>
+                  <option value="">Log for myself</option>
+                  {staffUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="label">Paddock *</label>
               <select className="input" {...tsForm.register('paddock_id', { required: true })}>
@@ -198,11 +238,11 @@ export default function StaffPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Hours *</label>
-                <input className="input" type="number" step="0.5" placeholder="8" {...tsForm.register('hours', { required: true })} />
+                <input className="input" type="number" step="0.5" min="0.5" placeholder="8" {...tsForm.register('hours', { required: true })} />
               </div>
               <div>
                 <label className="label">Rate ($/hr) *</label>
-                <input className="input" type="number" step="0.01" placeholder="28.00" {...tsForm.register('hourly_rate', { required: true })} />
+                <input className="input" type="number" step="0.01" min="0" placeholder="28.00" {...tsForm.register('hourly_rate', { required: true })} />
               </div>
             </div>
             <div>
@@ -210,15 +250,23 @@ export default function StaffPage() {
               <input className="input" type="date" {...tsForm.register('date')} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setTsModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-              <button type="submit" className="btn-primary flex-1">Save Entry</button>
+              <button type="button" onClick={() => { setTsModalOpen(false); tsForm.reset(); }} className="btn-secondary flex-1">Cancel</button>
+              <button type="submit" disabled={tsMutation.isPending} className="btn-primary flex-1">
+                {tsMutation.isPending ? 'Saving…' : 'Save Entry'}
+              </button>
             </div>
           </form>
         </Modal>
 
         {/* Fuel modal */}
-        <Modal open={fuelModalOpen} onClose={() => setFuelModalOpen(false)} title="Log Fuel">
+        <Modal open={fuelModalOpen} onClose={() => { setFuelModalOpen(false); fuelForm.reset(); }} title="Log Fuel">
           <form onSubmit={fuelForm.handleSubmit(d => fuelMutation.mutate(d))} className="space-y-4">
+            {fuelMutation.isError && (
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                Failed to save. Please check all fields and try again.
+              </div>
+            )}
             <div>
               <label className="label">Paddock *</label>
               <select className="input" {...fuelForm.register('paddock_id', { required: true })}>
@@ -229,11 +277,11 @@ export default function StaffPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Litres *</label>
-                <input className="input" type="number" step="0.1" placeholder="120" {...fuelForm.register('litres', { required: true })} />
+                <input className="input" type="number" step="0.1" min="0.1" placeholder="120" {...fuelForm.register('litres', { required: true })} />
               </div>
               <div>
                 <label className="label">Price/Litre *</label>
-                <input className="input" type="number" step="0.001" placeholder="2.15" {...fuelForm.register('price_per_litre', { required: true })} />
+                <input className="input" type="number" step="0.001" min="0" placeholder="2.15" {...fuelForm.register('price_per_litre', { required: true })} />
               </div>
             </div>
             <div>
@@ -241,8 +289,10 @@ export default function StaffPage() {
               <input className="input" type="date" {...fuelForm.register('date')} />
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setFuelModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
-              <button type="submit" className="btn-primary flex-1">Save Entry</button>
+              <button type="button" onClick={() => { setFuelModalOpen(false); fuelForm.reset(); }} className="btn-secondary flex-1">Cancel</button>
+              <button type="submit" disabled={fuelMutation.isPending} className="btn-primary flex-1">
+                {fuelMutation.isPending ? 'Saving…' : 'Save Entry'}
+              </button>
             </div>
           </form>
         </Modal>

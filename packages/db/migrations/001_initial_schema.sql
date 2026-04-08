@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS paddocks (
     area_hectares     FLOAT,
     crop_type         TEXT,
     boundary_geojson  JSONB,
+    country           TEXT,
+    city              TEXT,
+    latitude          FLOAT,
+    longitude         FLOAT,
+    land_area         FLOAT,
+    description       TEXT,
     created_at        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

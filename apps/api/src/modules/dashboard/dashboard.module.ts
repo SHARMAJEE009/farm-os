@@ -13,7 +13,7 @@ export class DashboardService {
   async getStats() {
     const [farms, paddocks, costs, recs, orders, recentTx] = await Promise.all([
       this.db.query('SELECT COUNT(*) FROM farms'),
-      this.db.query('SELECT COUNT(*), COALESCE(SUM(area_hectares),0) as total_ha FROM paddocks'),
+      this.db.query('SELECT COUNT(*), COALESCE(SUM(land_area),0) as total_ha FROM paddocks'),
       this.db.query(`
         SELECT COALESCE(SUM(amount),0) as total
         FROM financial_transactions
@@ -161,28 +161,28 @@ export class DashboardService {
   async getBenchmarking() {
     const { rows } = await this.db.query(`
       SELECT
-        p.id, p.name, p.area_hectares, p.crop_type,
+        p.id, p.name, p.land_area, p.crop_type,
         COALESCE(SUM(CASE WHEN ft.source = 'labour' THEN ft.amount ELSE 0 END), 0) as labour_cost,
         COALESCE(SUM(CASE WHEN ft.source = 'fuel' THEN ft.amount ELSE 0 END), 0) as fuel_cost,
         COALESCE(SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END), 0) as supplier_cost,
         COALESCE(SUM(ft.amount), 0) as total_cost
       FROM paddocks p
       LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
-      GROUP BY p.id, p.name, p.area_hectares, p.crop_type
+      GROUP BY p.id, p.name, p.land_area, p.crop_type
       ORDER BY total_cost DESC
     `);
 
     const paddocks = rows.map(r => ({
       id: r.id,
       name: r.name,
-      area_hectares: r.area_hectares ? parseFloat(r.area_hectares) : null,
+      land_area: r.land_area ? parseFloat(r.land_area) : null,
       crop_type: r.crop_type,
       labour_cost: parseFloat(r.labour_cost),
       fuel_cost: parseFloat(r.fuel_cost),
       supplier_cost: parseFloat(r.supplier_cost),
       total_cost: parseFloat(r.total_cost),
-      cost_per_hectare: r.area_hectares && parseFloat(r.area_hectares) > 0
-        ? Math.round(parseFloat(r.total_cost) / parseFloat(r.area_hectares) * 100) / 100
+      cost_per_hectare: r.land_area && parseFloat(r.land_area) > 0
+        ? Math.round(parseFloat(r.total_cost) / parseFloat(r.land_area) * 100) / 100
         : null,
     }));
 

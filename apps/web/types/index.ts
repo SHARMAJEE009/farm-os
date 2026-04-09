@@ -25,7 +25,6 @@ export interface Paddock {
   id: string;
   farm_id: string;
   name: string;
-  area_hectares: number | null;
   crop_type: string | null;
   boundary_geojson: object | null;
   country: string | null;
@@ -34,6 +33,7 @@ export interface Paddock {
   longitude: number | null;
   land_area: number | null;
   description: string | null;
+  sowing_date: string | null;
   created_at: string;
 }
 
@@ -180,7 +180,7 @@ export interface ForecastingData {
 export interface BenchmarkPaddock {
   id: string;
   name: string;
-  area_hectares: number | null;
+  land_area: number | null;
   crop_type: string | null;
   labour_cost: number;
   fuel_cost: number;

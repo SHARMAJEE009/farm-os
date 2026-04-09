@@ -85,7 +85,7 @@ export class ChatbotService {
   private async getFarmSummary() {
     const [costs, paddocks, recs, orders, labourHours] = await Promise.all([
       this.db.query(`SELECT COALESCE(SUM(amount),0) as total, COALESCE(SUM(CASE WHEN created_at >= date_trunc('month',CURRENT_DATE) THEN amount END),0) as month_total FROM financial_transactions`),
-      this.db.query(`SELECT COUNT(*) as count, COALESCE(SUM(area_hectares),0) as ha FROM paddocks`),
+      this.db.query(`SELECT COUNT(*) as count, COALESCE(SUM(land_area),0) as ha FROM paddocks`),
       this.db.query(`SELECT COUNT(*) as pending FROM recommendations WHERE status='draft'`),
       this.db.query(`SELECT COUNT(*) as pending FROM supplier_orders WHERE status='pending'`),
       this.db.query(`SELECT COALESCE(SUM(hours),0) as total FROM timesheets`),
@@ -220,17 +220,17 @@ export class ChatbotService {
   private async getPaddockSummary() {
     const { rows } = await this.db.query(`
       SELECT
-        p.name, p.area_hectares, p.crop_type,
+        p.name, p.land_area, p.crop_type,
         COALESCE(SUM(ft.amount),0) as total_cost
       FROM paddocks p
       LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
-      GROUP BY p.id, p.name, p.area_hectares, p.crop_type
+      GROUP BY p.id, p.name, p.land_area, p.crop_type
       ORDER BY total_cost DESC
     `);
 
     const paddockList = rows.map(p => {
       const cost = parseFloat(p.total_cost);
-      const ha = p.area_hectares ? parseFloat(p.area_hectares) : null;
+      const ha = p.land_area ? parseFloat(p.land_area) : null;
       const cph = ha && ha > 0 ? ` (${fmt(cost / ha)}/ha)` : '';
       return `  • ${p.name}${ha ? ` — ${ha}ha` : ''}${p.crop_type ? `, ${p.crop_type}` : ''}: ${fmt(cost)}${cph}`;
     }).join('\n');

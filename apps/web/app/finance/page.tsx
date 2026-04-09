@@ -81,7 +81,7 @@ export default function FinancePage() {
   const grandTotal    = totalLabour + totalFuel + totalSupplier;
   const txCount       = transactions?.length ?? 0;
   const avgTx         = txCount > 0 ? grandTotal / txCount : 0;
-  const totalHa       = paddockSummaries?.reduce((s, p) => s + (p.paddock.area_hectares ?? 0), 0) ?? 0;
+  const totalHa       = paddockSummaries?.reduce((s, p) => s + (p.paddock.land_area ?? 0), 0) ?? 0;
   const costPerHa     = totalHa > 0 ? grandTotal / totalHa : 0;
 
   // --- Monthly trend data (computed from transactions) ---
@@ -283,8 +283,8 @@ export default function FinancePage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {paddockSummaries.map(p => {
-                  const cph = p.paddock.area_hectares && p.paddock.area_hectares > 0
-                    ? p.total_cost / p.paddock.area_hectares
+                  const cph = p.paddock.land_area && p.paddock.land_area > 0
+                    ? p.total_cost / p.paddock.land_area
                     : null;
                   return (
                     <tr key={p.paddock.id} className="hover:bg-gray-50/50">

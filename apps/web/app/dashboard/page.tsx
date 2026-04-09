@@ -124,7 +124,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-sm font-medium text-gray-900">{p.paddock.name}</p>
                           <p className="text-xs text-gray-400">
-                            {p.paddock.crop_type || 'No crop'} · {p.paddock.area_hectares ?? '?'} ha
+                            {p.paddock.crop_type || 'No crop'} · {p.paddock.land_area ?? '?'} ha
                           </p>
                         </div>
                         <div className="text-right">

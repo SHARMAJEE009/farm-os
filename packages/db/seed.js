@@ -66,7 +66,7 @@ async function seed() {
   const paddockRows = [];
   for (const p of paddockData) {
     const { rows: [pad] } = await db.query(
-      `INSERT INTO paddocks (farm_id, name, area_hectares, crop_type)
+      `INSERT INTO paddocks (farm_id, name, land_area, crop_type)
        VALUES ($1,$2,$3,$4) RETURNING *`,
       [farm.id, p.name, p.area, p.crop],
     );

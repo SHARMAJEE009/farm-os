@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Map, Pencil, Trash2, MapPin } from 'lucide-react';
@@ -33,8 +33,8 @@ interface PaddockForm {
   city: string;
   latitude: string;
   longitude: string;
-  area_hectares: string;
   land_area: string;
+  sowing_date: string;
   description: string;
 }
 
@@ -58,14 +58,6 @@ export default function PaddocksPage() {
 
   const { register, handleSubmit, reset, setValue, control } = useForm<PaddockForm>();
 
-  // Watch land_area and auto-fill area_hectares
-  const watchedLandArea = useWatch({ control, name: 'land_area' });
-  useEffect(() => {
-    if (watchedLandArea) {
-      setValue('area_hectares', watchedLandArea);
-    }
-  }, [watchedLandArea, setValue]);
-
   // Watch lat/lng for the map marker
   const watchedLat = useWatch({ control, name: 'latitude' });
   const watchedLng = useWatch({ control, name: 'longitude' });
@@ -80,8 +72,8 @@ export default function PaddocksPage() {
     city: d.city || null,
     latitude: d.latitude ? parseFloat(d.latitude) : null,
     longitude: d.longitude ? parseFloat(d.longitude) : null,
-    area_hectares: d.area_hectares ? parseFloat(d.area_hectares) : null,
     land_area: d.land_area ? parseFloat(d.land_area) : null,
+    sowing_date: d.sowing_date || null,
     description: d.description || null,
   });
 
@@ -110,8 +102,8 @@ export default function PaddocksPage() {
     setValue('city', p.city ?? '');
     setValue('latitude', p.latitude?.toString() ?? '');
     setValue('longitude', p.longitude?.toString() ?? '');
-    setValue('area_hectares', p.area_hectares?.toString() ?? '');
     setValue('land_area', p.land_area?.toString() ?? '');
+    setValue('sowing_date', p.sowing_date?.slice(0, 10) ?? '');
     setValue('description', p.description ?? '');
     setModalOpen(true);
   };
@@ -182,8 +174,10 @@ export default function PaddocksPage() {
                   {p.land_area && (
                     <p className="text-sm text-gray-500">Land area: {p.land_area} ha</p>
                   )}
-                  {p.area_hectares && (
-                    <p className="text-sm text-gray-500">Area: {p.area_hectares} ha</p>
+                  {p.sowing_date && (
+                    <p className="text-sm text-gray-500">
+                      Sowing: {new Date(p.sowing_date).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </p>
                   )}
                   {p.latitude != null && p.longitude != null && (
                     <p className="text-xs text-gray-400">
@@ -281,7 +275,6 @@ export default function PaddocksPage() {
               </div>
             </div>
 
-            {/* Land Area → auto-fills Area (hectares) */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Land Area (ha)</label>
@@ -294,13 +287,11 @@ export default function PaddocksPage() {
                 />
               </div>
               <div>
-                <label className="label">Area (hectares)</label>
+                <label className="label">Sowing Date</label>
                 <input
                   className="input"
-                  type="number"
-                  step="0.1"
-                  placeholder="Auto-filled from Land Area"
-                  {...register('area_hectares')}
+                  type="date"
+                  {...register('sowing_date')}
                 />
               </div>
             </div>

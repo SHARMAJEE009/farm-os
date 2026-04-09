@@ -6,7 +6,6 @@ import { IsString, IsOptional, IsNumber, IsUUID } from 'class-validator';
 export class CreatePaddockDto {
   @IsUUID() farm_id: string;
   @IsString() name: string;
-  @IsOptional() @IsNumber() area_hectares?: number;
   @IsOptional() @IsString() crop_type?: string;
   @IsOptional() boundary_geojson?: object;
   @IsOptional() @IsString() country?: string;
@@ -15,11 +14,11 @@ export class CreatePaddockDto {
   @IsOptional() @IsNumber() longitude?: number;
   @IsOptional() @IsNumber() land_area?: number;
   @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() sowing_date?: string;
 }
 
 export class UpdatePaddockDto {
   @IsOptional() @IsString() name?: string;
-  @IsOptional() @IsNumber() area_hectares?: number;
   @IsOptional() @IsString() crop_type?: string;
   @IsOptional() boundary_geojson?: object;
   @IsOptional() @IsString() country?: string;
@@ -28,6 +27,7 @@ export class UpdatePaddockDto {
   @IsOptional() @IsNumber() longitude?: number;
   @IsOptional() @IsNumber() land_area?: number;
   @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() sowing_date?: string;
 }
 
 @Injectable()
@@ -52,14 +52,13 @@ export class PaddocksService {
   async create(dto: CreatePaddockDto) {
     const { rows } = await this.db.query(
       `INSERT INTO paddocks
-         (farm_id, name, area_hectares, crop_type, boundary_geojson,
-          country, city, latitude, longitude, land_area, description)
+         (farm_id, name, crop_type, boundary_geojson,
+          country, city, latitude, longitude, land_area, description, sowing_date)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         dto.farm_id,
         dto.name,
-        dto.area_hectares ?? null,
         dto.crop_type ?? null,
         dto.boundary_geojson ? JSON.stringify(dto.boundary_geojson) : null,
         dto.country ?? null,
@@ -68,6 +67,7 @@ export class PaddocksService {
         dto.longitude ?? null,
         dto.land_area ?? null,
         dto.description ?? null,
+        dto.sowing_date ?? null,
       ],
     );
     return rows[0];
@@ -77,13 +77,12 @@ export class PaddocksService {
     const p = await this.findOne(id);
     const { rows } = await this.db.query(
       `UPDATE paddocks
-       SET name=$1, area_hectares=$2, crop_type=$3, boundary_geojson=$4,
-           country=$5, city=$6, latitude=$7, longitude=$8, land_area=$9, description=$10
+       SET name=$1, crop_type=$2, boundary_geojson=$3,
+           country=$4, city=$5, latitude=$6, longitude=$7, land_area=$8, description=$9, sowing_date=$10
        WHERE id=$11
        RETURNING *`,
       [
         dto.name ?? p.name,
-        dto.area_hectares ?? p.area_hectares,
         dto.crop_type ?? p.crop_type,
         dto.boundary_geojson ? JSON.stringify(dto.boundary_geojson) : p.boundary_geojson,
         dto.country ?? p.country,
@@ -92,6 +91,7 @@ export class PaddocksService {
         dto.longitude ?? p.longitude,
         dto.land_area ?? p.land_area,
         dto.description ?? p.description,
+        dto.sowing_date ?? p.sowing_date,
         id,
       ],
     );

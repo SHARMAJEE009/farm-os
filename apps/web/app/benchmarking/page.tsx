@@ -225,7 +225,7 @@ export default function BenchmarkingPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900 leading-none">{p.name}</p>
                           <p className="text-xs text-gray-400 mt-0.5">
-                            {p.crop_type ?? 'No crop'} · {p.area_hectares ? `${p.area_hectares} ha` : 'Area unknown'}
+                            {p.crop_type ?? 'No crop'} · {p.land_area ? `${p.land_area} ha` : 'Area unknown'}
                           </p>
                         </div>
 

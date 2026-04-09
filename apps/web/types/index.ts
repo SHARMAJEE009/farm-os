@@ -82,7 +82,8 @@ export interface SupplierOrder {
 
 export interface Timesheet {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  staff_name: string | null;
   paddock_id: string;
   payment_id: string | null;
   hours: number;

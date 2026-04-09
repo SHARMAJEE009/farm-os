@@ -67,7 +67,7 @@ export default function SupplierPage() {
           subtitle="Manage product orders and fulfilment status"
           action={
             <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> New Order
+              <Plus className="w-4 h-4" /> New Supplier Order
             </button>
           }
         />

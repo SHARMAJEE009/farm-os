@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 type Tab = 'timesheets' | 'fuel';
 
 interface TimesheetForm {
-  user_id?: string;
+  user_id: string;
   paddock_id: string;
   hours: string;
   hourly_rate: string;
@@ -153,7 +153,12 @@ export default function StaffPage() {
                 <tbody className="divide-y divide-gray-50">
                   {timesheets.map((ts) => (
                     <tr key={ts.id} className="hover:bg-gray-50/50">
-                      <td className="px-4 py-3 text-gray-600">{ts.user?.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {ts.user?.name ?? ts.staff_name ?? '—'}
+                        {!ts.user_id && ts.staff_name && (
+                          <span className="ml-1.5 text-xs text-gray-400">(manual)</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{ts.paddock?.name ?? ts.paddock_id}</td>
                       <td className="px-4 py-3 text-gray-500">{formatDate(ts.date)}</td>
                       <td className="px-4 py-3 text-gray-700">{ts.hours}h</td>
@@ -219,15 +224,15 @@ export default function StaffPage() {
                 Failed to save. Please check all fields and try again.
               </div>
             )}
-            {staffUsers && staffUsers.length > 0 && (
-              <div>
-                <label className="label">Staff Member (optional)</label>
-                <select className="input" {...tsForm.register('user_id')}>
-                  <option value="">Log for myself</option>
-                  {staffUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
-            )}
+            <div>
+              <label className="label">Staff Member *</label>
+              <select className="input" {...tsForm.register('user_id', { required: true })}>
+                <option value="">Select staff member…</option>
+                {staffUsers?.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="label">Paddock *</label>
               <select className="input" {...tsForm.register('paddock_id', { required: true })}>

@@ -5,6 +5,7 @@ import { IsUUID, IsNumber, IsString, IsOptional, Min } from 'class-validator';
 
 export class CreateTimesheetDto {
   @IsOptional() @IsUUID() user_id?: string;
+  @IsOptional() @IsString() staff_name?: string;
   @IsUUID() paddock_id: string;
   @IsNumber() @Min(0.5) hours: number;
   @IsNumber() @Min(0) hourly_rate: number;
@@ -29,11 +30,15 @@ export class TimesheetsService {
          LEFT JOIN users u ON u.id = t.user_id
          ORDER BY t.date DESC`;
     const { rows } = await this.db.query(sql, paddockId ? [paddockId] : []);
-    return rows.map(r => ({
-      ...r,
-      paddock: r.paddock_name ? { id: r.paddock_id, name: r.paddock_name } : null,
-      user: r.user_name ? { id: r.user_id, name: r.user_name } : null,
-    }));
+    return rows.map(r => {
+      // Resolve display name: registered user takes priority, then manually entered name
+      const displayName = r.user_name ?? r.staff_name ?? null;
+      return {
+        ...r,
+        paddock: r.paddock_name ? { id: r.paddock_id, name: r.paddock_name } : null,
+        user: displayName ? { id: r.user_id ?? null, name: displayName } : null,
+      };
+    });
   }
 
   async findOne(id: string) {
@@ -44,10 +49,17 @@ export class TimesheetsService {
 
   async create(dto: CreateTimesheetDto) {
     const { rows } = await this.db.query(
-      `INSERT INTO timesheets (user_id, paddock_id, hours, hourly_rate, date, payment_id)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [dto.user_id, dto.paddock_id, dto.hours, dto.hourly_rate,
-       dto.date ?? new Date().toISOString().split('T')[0], dto.payment_id ?? null],
+      `INSERT INTO timesheets (user_id, staff_name, paddock_id, hours, hourly_rate, date, payment_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        dto.user_id ?? null,
+        dto.staff_name ?? null,
+        dto.paddock_id,
+        dto.hours,
+        dto.hourly_rate,
+        dto.date ?? new Date().toISOString().split('T')[0],
+        dto.payment_id ?? null,
+      ],
     );
     // Write financial transaction
     await this.db.query(

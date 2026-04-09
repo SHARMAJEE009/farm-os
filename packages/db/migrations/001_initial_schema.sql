@@ -90,7 +90,8 @@ CREATE TABLE IF NOT EXISTS supplier_orders (
 -- 7. TIMESHEETS
 CREATE TABLE IF NOT EXISTS timesheets (
     id            UUID      PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id       UUID      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id       UUID      REFERENCES users(id) ON DELETE CASCADE,
+    staff_name    TEXT,
     paddock_id    UUID      NOT NULL REFERENCES paddocks(id) ON DELETE CASCADE,
     payment_id    UUID      REFERENCES payments(id) ON DELETE SET NULL,
     hours         FLOAT     NOT NULL CHECK (hours > 0),

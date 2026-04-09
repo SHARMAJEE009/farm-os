@@ -147,9 +147,9 @@ export class ChatbotService {
     const avgRate = hours > 0 ? cost / hours : 0;
 
     const { rows: topStaff } = await this.db.query(`
-      SELECT u.name, SUM(t.hours) as hours, SUM(t.total_cost) as cost
+      SELECT COALESCE(u.name, t.staff_name, 'Unknown') as name, SUM(t.hours) as hours, SUM(t.total_cost) as cost
       FROM timesheets t LEFT JOIN users u ON u.id = t.user_id
-      GROUP BY u.name ORDER BY hours DESC LIMIT 3
+      GROUP BY COALESCE(u.name, t.staff_name, 'Unknown') ORDER BY hours DESC LIMIT 3
     `);
 
     const topList = topStaff.map(s => `  • ${s.name}: ${parseFloat(s.hours).toFixed(1)} hrs (${fmt(parseFloat(s.cost))})`).join('\n');

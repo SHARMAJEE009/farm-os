@@ -15,6 +15,7 @@ import { useForm } from 'react-hook-form';
 
 interface OrderForm {
   paddock_id: string;
+  supplier_name: string;
   product_name: string;
   quantity: string;
   unit_price: string;
@@ -41,7 +42,9 @@ export default function SupplierPage() {
   const createMutation = useMutation({
     mutationFn: (d: OrderForm) =>
       api.post('/supplier-orders', {
-        ...d,
+        paddock_id: d.paddock_id,
+        supplier_name: d.supplier_name || null,
+        product_name: d.product_name,
         quantity: parseFloat(d.quantity),
         unit_price: parseFloat(d.unit_price),
       }),
@@ -79,7 +82,7 @@ export default function SupplierPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Product', 'Paddock', 'Qty', 'Unit Price', 'Total', 'Status', 'Date', ''].map(h => (
+                  {['Product', 'Supplier', 'Paddock', 'Qty', 'Unit Price', 'Total', 'Status', 'Date', ''].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -88,6 +91,7 @@ export default function SupplierPage() {
                 {orders.map((o) => (
                   <tr key={o.id} className="hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-gray-900">{o.product_name}</td>
+                    <td className="px-4 py-3 text-gray-500">{o.supplier_name ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{o.paddock?.name ?? o.paddock_id}</td>
                     <td className="px-4 py-3 text-gray-700">{o.quantity}</td>
                     <td className="px-4 py-3 text-gray-500">{formatCurrency(o.unit_price)}</td>
@@ -131,6 +135,10 @@ export default function SupplierPage() {
                 <option value="">Select paddock…</option>
                 {paddocks?.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="label">Supplier Name</label>
+              <input className="input" placeholder="e.g. Elders, Nutrien Ag" {...register('supplier_name')} />
             </div>
             <div>
               <label className="label">Product Name *</label>

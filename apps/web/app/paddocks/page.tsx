@@ -83,8 +83,10 @@ export default function PaddocksPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (d: PaddockForm) =>
-      api.patch(`/paddocks/${editItem!.id}`, toPayload(d, editItem!.farm_id)),
+    mutationFn: (d: PaddockForm) => {
+      const { farm_id, ...updatePayload } = toPayload(d, editItem!.farm_id);
+      return api.patch(`/paddocks/${editItem!.id}`, updatePayload);
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['paddocks'] }); closeModal(); },
   });
 

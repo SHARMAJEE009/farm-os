@@ -10,6 +10,7 @@ import { Module } from '@nestjs/common';
 export class CreateSupplierOrderDto {
   @IsUUID() paddock_id: string;
   @IsOptional() @IsUUID() supplier_id?: string;
+  @IsOptional() @IsString() supplier_name?: string;
   @IsOptional() @IsUUID() recommendation_id?: string;
   @IsString() product_name: string;
   @IsNumber() @Min(0.01) quantity: number;
@@ -25,7 +26,8 @@ export class SupplierOrdersService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
   async findAll(paddockId?: string, status?: string) {
-    let sql = `SELECT o.*, p.name as paddock_name, u.name as supplier_name
+    let sql = `SELECT o.*, p.name as paddock_name,
+                 COALESCE(o.supplier_name, u.name) as resolved_supplier_name
                FROM supplier_orders o
                LEFT JOIN paddocks p ON p.id = o.paddock_id
                LEFT JOIN users u ON u.id = o.supplier_id`;
@@ -39,7 +41,7 @@ export class SupplierOrdersService {
     return rows.map(r => ({
       ...r,
       paddock: r.paddock_name ? { id: r.paddock_id, name: r.paddock_name } : null,
-      supplier: r.supplier_name ? { id: r.supplier_id, name: r.supplier_name } : null,
+      supplier_name: r.resolved_supplier_name ?? null,
     }));
   }
 
@@ -52,10 +54,10 @@ export class SupplierOrdersService {
   async create(dto: CreateSupplierOrderDto) {
     const { rows } = await this.db.query(
       `INSERT INTO supplier_orders
-         (paddock_id, supplier_id, recommendation_id, product_name, quantity, unit_price)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+         (paddock_id, supplier_id, recommendation_id, product_name, quantity, unit_price, supplier_name)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [dto.paddock_id, dto.supplier_id ?? null, dto.recommendation_id ?? null,
-       dto.product_name, dto.quantity, dto.unit_price],
+       dto.product_name, dto.quantity, dto.unit_price, dto.supplier_name ?? null],
     );
     // Write financial transaction when created
     await this.db.query(

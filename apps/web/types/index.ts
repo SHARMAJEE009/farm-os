@@ -75,6 +75,7 @@ export interface SupplierOrder {
   unit_price: number;
   total_price: number;
   status: OrderStatus;
+  supplier_name: string | null;
   created_at: string;
   paddock?: Paddock;
   supplier?: User;

@@ -136,10 +136,10 @@ export default function ForecastingPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
 
         {/* ── header ── */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Forecasting</h1>
             <p className="text-sm text-gray-400 mt-0.5">Cost projections based on your trailing 3-month average</p>

@@ -291,7 +291,7 @@ export default function NewsPage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="News"
           subtitle="Latest Australian agriculture and weather news"

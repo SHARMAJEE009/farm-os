@@ -124,7 +124,7 @@ export default function PaddocksPage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="Paddocks"
           subtitle="Manage your farm paddocks and crop records"

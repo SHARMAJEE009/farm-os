@@ -62,7 +62,7 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="Dashboard"
           subtitle="Overview of your farm operations"

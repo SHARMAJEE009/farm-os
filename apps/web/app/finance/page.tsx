@@ -135,7 +135,7 @@ export default function FinancePage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="Finance"
           subtitle="Paddock cost breakdown and financial analysis"
@@ -165,7 +165,7 @@ export default function FinancePage() {
         </div>
 
         {/* Summary stats row 2 — source breakdown */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
               <Users className="w-5 h-5 text-blue-600" />
@@ -273,7 +273,8 @@ export default function FinancePage() {
             <h2 className="text-base font-semibold text-gray-900">Paddock Cost Summary</h2>
           </div>
           {psLoading ? <div className="p-4"><Spinner /></div> : paddockSummaries && paddockSummaries.length > 0 ? (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-gray-50">
                 <tr>
                   {['Paddock', 'Crop', 'Labour', 'Fuel', 'Supplies', 'Total', '$/ha'].map(h => (
@@ -300,6 +301,7 @@ export default function FinancePage() {
                 })}
               </tbody>
             </table>
+            </div>
           ) : <div className="text-center py-12 text-gray-400 text-sm">No financial data yet</div>}
         </div>
 
@@ -336,7 +338,8 @@ export default function FinancePage() {
             </div>
           </div>
           {txLoading ? <div className="p-4"><Spinner /></div> : filtered.length > 0 ? (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
               <thead className="bg-gray-50">
                 <tr>
                   {['Date', 'Source', 'Paddock', 'Detail', 'Amount'].map(h => (
@@ -363,6 +366,7 @@ export default function FinancePage() {
                 })}
               </tbody>
             </table>
+            </div>
           ) : <div className="text-center py-12 text-gray-400 text-sm">No transactions match your filters</div>}
         </div>
       </div>

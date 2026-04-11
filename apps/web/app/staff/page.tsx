@@ -106,7 +106,7 @@ export default function StaffPage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="Staff"
           subtitle="Track labour hours and fuel usage by paddock"
@@ -142,7 +142,8 @@ export default function StaffPage() {
           tsLoading ? <Spinner /> :
           timesheets && timesheets.length > 0 ? (
             <div className="card p-0 overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     {['Staff', 'Paddock', 'Date', 'Hours', 'Rate/hr', 'Total', ''].map(h => (
@@ -173,6 +174,7 @@ export default function StaffPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <EmptyState icon={Clock} title="No timesheets yet" description="Start logging staff hours against paddocks." action={<button onClick={() => setTsModalOpen(true)} className="btn-primary">Log first hours</button>} />
@@ -184,7 +186,8 @@ export default function StaffPage() {
           fuelLoading ? <Spinner /> :
           fuelLogs && fuelLogs.length > 0 ? (
             <div className="card p-0 overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[440px]">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     {['Paddock', 'Date', 'Litres', 'Price/L', 'Total', ''].map(h => (
@@ -209,6 +212,7 @@ export default function StaffPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           ) : (
             <EmptyState icon={Fuel} title="No fuel logs yet" description="Track fuel usage per paddock to understand machinery costs." action={<button onClick={() => setFuelModalOpen(true)} className="btn-primary">Log first fuel entry</button>} />

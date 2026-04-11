@@ -101,7 +101,7 @@ export default function ChatbotPage() {
 
   return (
     <AppLayout>
-      <div className="p-6 h-full flex flex-col" style={{ minHeight: 'calc(100vh - 0px)' }}>
+      <div className="p-4 sm:p-6 h-full flex flex-col" style={{ minHeight: 'calc(100vh - 0px)' }}>
         <PageHeader
           title="AI Assistant"
           subtitle="Ask questions about your farm data in plain English"

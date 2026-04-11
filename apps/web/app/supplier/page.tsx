@@ -64,7 +64,7 @@ export default function SupplierPage() {
 
   return (
     <AppLayout>
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <PageHeader
           title="Supplier Orders"
           subtitle="Manage product orders and fulfilment status"
@@ -79,7 +79,8 @@ export default function SupplierPage() {
           <Spinner />
         ) : orders && orders.length > 0 ? (
           <div className="card p-0 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   {['Product', 'Supplier', 'Paddock', 'Qty', 'Unit Price', 'Total', 'Status', 'Date', ''].map(h => (
@@ -117,6 +118,7 @@ export default function SupplierPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <EmptyState

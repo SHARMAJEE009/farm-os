@@ -8,12 +8,9 @@ export class CreatePaddockDto {
   @IsString() name: string;
   @IsOptional() @IsString() crop_type?: string;
   @IsOptional() boundary_geojson?: object;
-  @IsOptional() @IsString() country?: string;
-  @IsOptional() @IsString() city?: string;
   @IsOptional() @IsNumber() latitude?: number;
   @IsOptional() @IsNumber() longitude?: number;
   @IsOptional() @IsNumber() land_area?: number;
-  @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() sowing_date?: string;
 }
 
@@ -21,12 +18,9 @@ export class UpdatePaddockDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() crop_type?: string;
   @IsOptional() boundary_geojson?: object;
-  @IsOptional() @IsString() country?: string;
-  @IsOptional() @IsString() city?: string;
   @IsOptional() @IsNumber() latitude?: number;
   @IsOptional() @IsNumber() longitude?: number;
   @IsOptional() @IsNumber() land_area?: number;
-  @IsOptional() @IsString() description?: string;
   @IsOptional() @IsString() sowing_date?: string;
 }
 
@@ -53,20 +47,17 @@ export class PaddocksService {
     const { rows } = await this.db.query(
       `INSERT INTO paddocks
          (farm_id, name, crop_type, boundary_geojson,
-          country, city, latitude, longitude, land_area, description, sowing_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          latitude, longitude, land_area, sowing_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
       [
         dto.farm_id,
         dto.name,
         dto.crop_type ?? null,
         dto.boundary_geojson ? JSON.stringify(dto.boundary_geojson) : null,
-        dto.country ?? null,
-        dto.city ?? null,
         dto.latitude ?? null,
         dto.longitude ?? null,
         dto.land_area ?? null,
-        dto.description ?? null,
         dto.sowing_date ?? null,
       ],
     );
@@ -78,19 +69,16 @@ export class PaddocksService {
     const { rows } = await this.db.query(
       `UPDATE paddocks
        SET name=$1, crop_type=$2, boundary_geojson=$3,
-           country=$4, city=$5, latitude=$6, longitude=$7, land_area=$8, description=$9, sowing_date=$10
-       WHERE id=$11
+           latitude=$4, longitude=$5, land_area=$6, sowing_date=$7
+       WHERE id=$8
        RETURNING *`,
       [
         dto.name !== undefined ? dto.name : p.name,
         dto.crop_type !== undefined ? dto.crop_type : p.crop_type,
         dto.boundary_geojson ? JSON.stringify(dto.boundary_geojson) : p.boundary_geojson,
-        dto.country !== undefined ? dto.country : p.country,
-        dto.city !== undefined ? dto.city : p.city,
         dto.latitude !== undefined ? dto.latitude : p.latitude,
         dto.longitude !== undefined ? dto.longitude : p.longitude,
         dto.land_area !== undefined ? dto.land_area : p.land_area,
-        dto.description !== undefined ? dto.description : p.description,
         dto.sowing_date !== undefined ? dto.sowing_date : p.sowing_date,
         id,
       ],

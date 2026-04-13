@@ -27,12 +27,9 @@ export interface Paddock {
   name: string;
   crop_type: string | null;
   boundary_geojson: object | null;
-  country: string | null;
-  city: string | null;
   latitude: number | null;
   longitude: number | null;
   land_area: number | null;
-  description: string | null;
   sowing_date: string | null;
   created_at: string;
 }

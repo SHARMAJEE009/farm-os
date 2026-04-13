@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
-import { Newspaper, ExternalLink, RefreshCw, Search, Clock, Cloud, Wind, Droplets, Thermometer, MapPin, AlertCircle } from 'lucide-react';
+import { Newspaper, ExternalLink, RefreshCw, Search, Clock, Cloud, Wind, Droplets, Thermometer, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -66,12 +66,6 @@ function WeatherCard({ paddock, weather, isLoading, isError }: {
         <div className="flex items-start justify-between">
           <div>
             <h3 className="font-semibold text-base leading-tight">{paddock.name}</h3>
-            {(paddock.city || paddock.country) && (
-              <p className="text-blue-100 text-xs mt-0.5 flex items-center gap-1">
-                <MapPin className="w-3 h-3" />
-                {[paddock.city, paddock.country].filter(Boolean).join(', ')}
-              </p>
-            )}
           </div>
           {iconUrl && (
             <img src={iconUrl} alt={w?.description} className="w-14 h-14 -mt-1 -mr-2 drop-shadow" />

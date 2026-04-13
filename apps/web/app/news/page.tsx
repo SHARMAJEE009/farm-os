@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { Newspaper, ExternalLink, RefreshCw, Search, Clock, Cloud, Wind, Droplets, Thermometer, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -203,10 +203,11 @@ function WeatherSection() {
 }
 
 function NewsCard({ item }: { item: NewsItem }) {
-  const timeAgo = (() => {
-    try { return formatDistanceToNow(new Date(item.pubDate), { addSuffix: true }); }
-    catch { return item.pubDate; }
-  })();
+  const [timeAgo, setTimeAgo] = useState('');
+  useEffect(() => {
+    try { setTimeAgo(formatDistanceToNow(new Date(item.pubDate), { addSuffix: true })); }
+    catch { setTimeAgo(item.pubDate); }
+  }, [item.pubDate]);
 
   return (
     <a

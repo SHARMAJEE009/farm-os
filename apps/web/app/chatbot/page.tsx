@@ -166,7 +166,7 @@ export default function ChatbotPage() {
                       {formatContent(msg.content)}
                     </div>
                     <p className={`text-xs mt-1.5 ${msg.role === 'assistant' ? 'text-gray-400' : 'text-farm-200'}`}>
-                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {msg.timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                     </p>
                   </div>
                 </div>

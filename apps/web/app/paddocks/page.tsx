@@ -309,7 +309,11 @@ export default function PaddocksPage() {
                       )}
                       {p.sowing_date && (
                         <p className="text-sm text-gray-500">
-                          Sowing: {new Date(p.sowing_date).toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          Sowing: {(() => {
+                            const [y, m, d] = p.sowing_date!.slice(0, 10).split('-');
+                            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                            return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+                          })()}
                         </p>
                       )}
                       {p.latitude != null && p.longitude != null && (

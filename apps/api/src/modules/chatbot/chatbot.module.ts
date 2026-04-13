@@ -12,14 +12,12 @@ export class ChatDto {
   @IsString() @MinLength(1) message: string;
 }
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
-
 @Injectable()
 export class ChatbotService {
   private openai: OpenAI;
 
   constructor(@Inject(DATABASE_POOL) private db: Pool) {
-    this.openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? '' });
   }
 
   async processMessage(message: string): Promise<{ reply: string }> {

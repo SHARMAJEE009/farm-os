@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Map, Pencil, Trash2, MapPin } from 'lucide-react';
+import { Plus, Map, Pencil, Trash2, MapPin, Upload, X, FileText, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Spinner } from '@/components/ui/Spinner';
@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import type { Paddock, Farm } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm, useWatch } from 'react-hook-form';
+import type { LatLngTuple } from '@/components/ui/MapPicker';
 
 // Dynamically import the map to avoid SSR issues with Leaflet
 const MapPicker = dynamic(
@@ -19,7 +20,7 @@ const MapPicker = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[220px] bg-gray-100 rounded-xl animate-pulse flex items-center justify-center">
+      <div className="h-[260px] bg-gray-100 rounded-xl animate-pulse flex items-center justify-center">
         <span className="text-sm text-gray-400">Loading map…</span>
       </div>
     ),
@@ -38,10 +39,95 @@ interface PaddockForm {
   description: string;
 }
 
+// ── KML parser ────────────────────────────────────────────────
+interface KmlResult {
+  coords: LatLngTuple[];          // [lng, lat] pairs
+  centroid: { lat: number; lng: number };
+  name: string | null;
+  description: string | null;
+  area_ha: number | null;
+}
+
+/** Haversine area of a polygon in hectares */
+function polygonAreaHa(coords: LatLngTuple[]): number {
+  const R = 6371000; // earth radius in metres
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  let area = 0;
+  const n = coords.length;
+  for (let i = 0; i < n; i++) {
+    const [lng1, lat1] = coords[i];
+    const [lng2, lat2] = coords[(i + 1) % n];
+    area += toRad(lng2 - lng1) * (2 + Math.sin(toRad(lat1)) + Math.sin(toRad(lat2)));
+  }
+  return Math.abs((area * R * R) / 2) / 10_000;
+}
+
+function parseKml(text: string): KmlResult {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/xml');
+
+  // Check parse error
+  if (doc.querySelector('parsererror')) {
+    throw new Error('Invalid KML file — could not parse XML.');
+  }
+
+  // Grab first Placemark
+  const placemark = doc.querySelector('Placemark');
+
+  const kmlName = placemark?.querySelector('name')?.textContent?.trim() ?? null;
+  const kmlDesc = placemark?.querySelector('description')?.textContent?.trim() ?? null;
+
+  // Find coordinates element — works for Polygon, LineString, Point
+  const coordsEl =
+    doc.querySelector('Polygon outerBoundaryIs coordinates') ??
+    doc.querySelector('Polygon coordinates') ??
+    doc.querySelector('LinearRing coordinates') ??
+    doc.querySelector('LineString coordinates') ??
+    doc.querySelector('coordinates');
+
+  if (!coordsEl?.textContent) {
+    throw new Error('No coordinates found in KML file.');
+  }
+
+  // KML coordinate tuples: "lng,lat[,alt]" separated by whitespace
+  const raw = coordsEl.textContent.trim();
+  const tuples = raw.split(/\s+/).filter(Boolean);
+
+  const coords: LatLngTuple[] = tuples.map(t => {
+    const parts = t.split(',').map(Number);
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) {
+      throw new Error(`Invalid coordinate tuple: "${t}"`);
+    }
+    return [parts[0], parts[1]]; // [lng, lat]
+  });
+
+  if (coords.length < 1) {
+    throw new Error('KML file contains no valid coordinates.');
+  }
+
+  // Centroid of bounding box
+  const lngs = coords.map(c => c[0]);
+  const lats = coords.map(c => c[1]);
+  const centroid = {
+    lat: parseFloat((((Math.min(...lats) + Math.max(...lats)) / 2)).toFixed(6)),
+    lng: parseFloat((((Math.min(...lngs) + Math.max(...lngs)) / 2)).toFixed(6)),
+  };
+
+  const area_ha = coords.length >= 3 ? parseFloat(polygonAreaHa(coords).toFixed(2)) : null;
+
+  return { coords, centroid, name: kmlName, description: kmlDesc, area_ha };
+}
+
 export default function PaddocksPage() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Paddock | null>(null);
+
+  // KML state
+  const [kmlBoundary, setKmlBoundary] = useState<LatLngTuple[] | null>(null);
+  const [kmlFileName, setKmlFileName] = useState<string | null>(null);
+  const [kmlError, setKmlError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch paddocks
   const { data: paddocks, isLoading } = useQuery<Paddock[]>({
@@ -75,6 +161,9 @@ export default function PaddocksPage() {
     land_area: d.land_area ? parseFloat(d.land_area) : null,
     sowing_date: d.sowing_date || null,
     description: d.description || null,
+    boundary_geojson: kmlBoundary
+      ? { type: 'Polygon', coordinates: [kmlBoundary] }
+      : null,
   });
 
   const createMutation = useMutation({
@@ -95,7 +184,15 @@ export default function PaddocksPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['paddocks'] }),
   });
 
-  const openCreate = () => { reset(); setEditItem(null); setModalOpen(true); };
+  const openCreate = () => {
+    reset();
+    setEditItem(null);
+    setKmlBoundary(null);
+    setKmlFileName(null);
+    setKmlError(null);
+    setModalOpen(true);
+  };
+
   const openEdit = (p: Paddock) => {
     setEditItem(p);
     setValue('name', p.name);
@@ -107,9 +204,22 @@ export default function PaddocksPage() {
     setValue('land_area', p.land_area?.toString() ?? '');
     setValue('sowing_date', p.sowing_date?.slice(0, 10) ?? '');
     setValue('description', p.description ?? '');
+    // Restore boundary if stored
+    const boundary = (p.boundary_geojson as any)?.coordinates?.[0] ?? null;
+    setKmlBoundary(boundary);
+    setKmlFileName(boundary ? 'existing boundary' : null);
+    setKmlError(null);
     setModalOpen(true);
   };
-  const closeModal = () => { setModalOpen(false); setEditItem(null); reset(); };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditItem(null);
+    reset();
+    setKmlBoundary(null);
+    setKmlFileName(null);
+    setKmlError(null);
+  };
 
   const onSubmit = (d: PaddockForm) => {
     editItem ? updateMutation.mutate(d) : createMutation.mutate(d);
@@ -118,6 +228,64 @@ export default function PaddocksPage() {
   const handleMapSelect = (lat: number, lng: number) => {
     setValue('latitude', lat.toString());
     setValue('longitude', lng.toString());
+  };
+
+  // ── KML file handler ─────────────────────────────────────────
+  const handleKmlFile = useCallback((file: File) => {
+    setKmlError(null);
+    if (!file.name.match(/\.(kml|kmz)$/i)) {
+      setKmlError('Please upload a .kml file.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const result = parseKml(e.target!.result as string);
+        setKmlBoundary(result.coords);
+        setKmlFileName(file.name);
+
+        // Auto-fill centroid as lat/lng
+        setValue('latitude', result.centroid.lat.toString());
+        setValue('longitude', result.centroid.lng.toString());
+
+        // Auto-fill area if not already set
+        if (result.area_ha && result.area_ha > 0) {
+          setValue('land_area', result.area_ha.toString());
+        }
+        // Auto-fill name if form is empty
+        if (result.name) {
+          const currentName = (document.querySelector('input[name="name"]') as HTMLInputElement)?.value;
+          if (!currentName) setValue('name', result.name);
+        }
+        // Auto-fill description
+        if (result.description) {
+          setValue('description', result.description);
+        }
+      } catch (err: any) {
+        setKmlError(err.message ?? 'Failed to parse KML file.');
+        setKmlBoundary(null);
+        setKmlFileName(null);
+      }
+    };
+    reader.readAsText(file);
+  }, [setValue]);
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleKmlFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleKmlFile(file);
+  };
+
+  const clearKml = () => {
+    setKmlBoundary(null);
+    setKmlFileName(null);
+    setKmlError(null);
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
@@ -186,6 +354,12 @@ export default function PaddocksPage() {
                       {p.latitude.toFixed(5)}, {p.longitude.toFixed(5)}
                     </p>
                   )}
+                  {p.boundary_geojson && (
+                    <p className="text-xs text-farm-600 flex items-center gap-1">
+                      <Map className="w-3 h-3" />
+                      Boundary mapped
+                    </p>
+                  )}
                   {p.description && (
                     <p className="text-sm text-gray-500 line-clamp-2">{p.description}</p>
                   )}
@@ -245,15 +419,73 @@ export default function PaddocksPage() {
               </div>
             </div>
 
+            {/* ── KML Upload ──────────────────────────────────────── */}
+            <div>
+              <label className="label">Boundary — Upload KML File</label>
+
+              {!kmlFileName ? (
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={e => e.preventDefault()}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-200 rounded-xl px-4 py-5 cursor-pointer hover:border-farm-400 hover:bg-farm-50/40 transition-colors"
+                >
+                  <div className="w-10 h-10 bg-farm-50 rounded-xl flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-farm-600" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-700">Drop a .kml file here</p>
+                    <p className="text-xs text-gray-400 mt-0.5">or click to browse · Area, coords & name auto-filled</p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".kml,.kmz"
+                    className="hidden"
+                    onChange={handleFileInput}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 bg-farm-50 border border-farm-200 rounded-xl px-4 py-3">
+                  <div className="w-8 h-8 bg-farm-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-4 h-4 text-farm-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-farm-800 truncate">{kmlFileName}</p>
+                    <p className="text-xs text-farm-600">Boundary loaded · shown on map below</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearKml}
+                    className="p-1 text-farm-400 hover:text-red-500 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {kmlError && (
+                <div className="flex items-center gap-2 mt-2 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {kmlError}
+                </div>
+              )}
+            </div>
+
             {/* Map picker */}
             <div>
               <label className="label">
-                Location — click the map to pin coordinates
+                Location — {kmlBoundary ? 'KML boundary shown · click to move pin' : 'click the map to pin coordinates'}
               </label>
-              <MapPicker lat={mapLat} lng={mapLng} onSelect={handleMapSelect} />
+              <MapPicker
+                lat={mapLat}
+                lng={mapLng}
+                onSelect={handleMapSelect}
+                kmlBoundary={kmlBoundary}
+              />
             </div>
 
-            {/* Lat / Lng (editable — also updated by map click) */}
+            {/* Lat / Lng */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Latitude</label>

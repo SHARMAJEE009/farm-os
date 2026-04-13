@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, ShoppingCart, Truck, Trash2 } from 'lucide-react';
+import { Plus, ShoppingCart, Truck, Trash2, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import type { SupplierOrder, Paddock } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
@@ -98,15 +98,24 @@ export default function SupplierPage() {
                     <td className="px-4 py-3 text-gray-500">{formatCurrency(o.unit_price)}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{formatCurrency(o.total_price)}</td>
                     <td className="px-4 py-3">
-                      <select
-                        value={o.status}
-                        onChange={(e) => statusMutation.mutate({ id: o.id, status: e.target.value })}
-                        className={`text-xs rounded-full px-2 py-1 font-medium border-0 cursor-pointer ${getStatusColor(o.status)}`}
-                      >
-                        {STATUS_OPTIONS.map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      <div className="relative inline-flex items-center">
+                        <select
+                          value={o.status}
+                          onChange={(e) => statusMutation.mutate({ id: o.id, status: e.target.value })}
+                          className={`appearance-none text-xs rounded-lg pl-2.5 pr-6 py-1 font-medium border cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 ${
+                            o.status === 'pending'
+                              ? 'bg-yellow-50 text-yellow-800 border-yellow-200 focus:ring-yellow-300'
+                              : o.status === 'ordered'
+                              ? 'bg-green-50 text-green-800 border-green-200 focus:ring-green-300'
+                              : 'bg-blue-50 text-blue-800 border-blue-200 focus:ring-blue-300'
+                          }`}
+                        >
+                          {STATUS_OPTIONS.map(s => (
+                            <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-1.5 w-3 h-3 opacity-50" />
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-400">{formatDate(o.created_at)}</td>
                     <td className="px-4 py-3">

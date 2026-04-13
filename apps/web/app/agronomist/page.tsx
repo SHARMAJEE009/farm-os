@@ -159,7 +159,7 @@ function RecCard({
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white hover:bg-green-700 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
-                Approve
+                Accept
               </button>
             </div>
           )}

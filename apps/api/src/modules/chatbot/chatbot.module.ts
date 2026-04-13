@@ -6,261 +6,188 @@ import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Module } from '@nestjs/common';
+import OpenAI from 'openai';
 
 export class ChatDto {
   @IsString() @MinLength(1) message: string;
 }
 
-function fmt(n: number) {
-  return `$${n.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
 
 @Injectable()
 export class ChatbotService {
-  constructor(@Inject(DATABASE_POOL) private db: Pool) {}
+  private openai: OpenAI;
 
-  async processMessage(message: string): Promise<{ reply: string; data?: any }> {
-    const msg = message.toLowerCase().trim();
-
-    // Greetings
-    if (/^(hi|hello|hey|howdy|g'day|gday)/.test(msg)) {
-      return {
-        reply: "G'day! I'm your Farm OS assistant. I can help you with costs, paddocks, staff hours, fuel usage, supplier orders, and recommendations.\n\nWhat would you like to know?",
-      };
-    }
-
-    // Help
-    if (/\b(help|what can you|capabilities|what do you know)\b/.test(msg)) {
-      return {
-        reply: "I can answer questions like:\n• \"What are my total costs?\"\n• \"Show me paddock details\"\n• \"How many hours have staff worked?\"\n• \"What's my fuel spend?\"\n• \"Any pending recommendations?\"\n• \"Summary of supplier orders\"\n• \"Which paddock costs the most?\"\n\nJust ask away!",
-      };
-    }
-
-    // Overview / Summary
-    if (/\b(overview|summary|dashboard|farm status|how is the farm)\b/.test(msg)) {
-      return this.getFarmSummary();
-    }
-
-    // Labour / Staff / Hours
-    if (/\b(labour|labor|staff|hours|timesheet|worker)\b/.test(msg)) {
-      return this.getLabourSummary();
-    }
-
-    // Fuel
-    if (/\b(fuel|diesel|petrol|litre|liter)\b/.test(msg)) {
-      return this.getFuelSummary();
-    }
-
-    // Supplier / Orders
-    if (/\b(supplier|order|orders|product|delivery|delivered)\b/.test(msg)) {
-      return this.getSupplierSummary();
-    }
-
-    // Recommendations / Agronomy
-    if (/\b(recommendation|agronomy|agronomist|advice|spray|fertiliser)\b/.test(msg)) {
-      return this.getRecommendationsSummary();
-    }
-
-    // Paddock specific
-    if (/\b(paddock|field|plot|block|area|land|hectare)\b/.test(msg)) {
-      return this.getPaddockSummary();
-    }
-
-    // Total cost / spending
-    if (/\b(cost|costs|spend|spending|budget|money|financial|finance|total)\b/.test(msg)) {
-      return this.getCostSummary();
-    }
-
-    // Weather
-    if (/\b(weather|rain|rainfall|temperature|forecast)\b/.test(msg)) {
-      return {
-        reply: "For weather forecasts and rainfall data, I recommend checking the Bureau of Meteorology at bom.gov.au. They have detailed agricultural weather forecasts for all Australian regions.",
-      };
-    }
-
-    // Default: general farm summary
-    return this.getFarmSummary();
+  constructor(@Inject(DATABASE_POOL) private db: Pool) {
+    this.openai = new OpenAI({ apiKey: OPENAI_API_KEY });
   }
 
-  private async getFarmSummary() {
-    const [costs, paddocks, recs, orders, labourHours] = await Promise.all([
-      this.db.query(`SELECT COALESCE(SUM(amount),0) as total, COALESCE(SUM(CASE WHEN created_at >= date_trunc('month',CURRENT_DATE) THEN amount END),0) as month_total FROM financial_transactions`),
-      this.db.query(`SELECT COUNT(*) as count, COALESCE(SUM(land_area),0) as ha FROM paddocks`),
-      this.db.query(`SELECT COUNT(*) as pending FROM recommendations WHERE status='draft'`),
-      this.db.query(`SELECT COUNT(*) as pending FROM supplier_orders WHERE status='pending'`),
-      this.db.query(`SELECT COALESCE(SUM(hours),0) as total FROM timesheets`),
+  async processMessage(message: string): Promise<{ reply: string }> {
+    const farmContext = await this.buildFarmContext();
+
+    const systemPrompt = `You are FarmOS AI Assistant — a knowledgeable, friendly assistant for an Australian farm management platform.
+
+You have access to the following live farm data:
+
+${farmContext}
+
+Your capabilities:
+- Answer questions about the farm's costs, paddocks, labour, fuel, and supplier orders
+- Provide expert guidance on crop management, farming practices, pest control, irrigation, fertilisation, and seasonal operations
+- Give advice on Australian agriculture, crop cycles, and agronomy best practices
+- Interpret the farm's data and offer actionable insights
+
+Response style:
+- Be concise but thorough
+- Use **bold** for key figures and headings
+- Use bullet points for lists
+- Use Australian spelling and a friendly, professional tone
+- When citing farm data, be specific with numbers
+- For farming practice questions, provide practical, evidence-based advice
+- Never make up data — only use the figures provided above`;
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message },
+      ],
+      max_tokens: 600,
+      temperature: 0.7,
+    });
+
+    const reply =
+      completion.choices[0]?.message?.content?.trim() ??
+      "Sorry, I couldn't generate a response. Please try again.";
+
+    return { reply };
+  }
+
+  private async buildFarmContext(): Promise<string> {
+    const [paddocks, costs, labour, fuel, orders, recs] = await Promise.all([
+      this.db.query(`
+        SELECT
+          p.name,
+          p.crop_type,
+          p.land_area,
+          p.sowing_date,
+          p.latitude,
+          p.longitude,
+          COALESCE(SUM(ft.amount), 0) AS total_cost
+        FROM paddocks p
+        LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
+        GROUP BY p.id, p.name, p.crop_type, p.land_area, p.sowing_date, p.latitude, p.longitude
+        ORDER BY total_cost DESC
+      `),
+      this.db.query(`
+        SELECT
+          source,
+          COALESCE(SUM(amount), 0) AS total,
+          COUNT(*) AS count
+        FROM financial_transactions
+        GROUP BY source
+      `),
+      this.db.query(`
+        SELECT
+          COALESCE(SUM(hours), 0) AS total_hours,
+          COALESCE(SUM(total_cost), 0) AS total_cost,
+          COUNT(DISTINCT COALESCE(user_id::text, staff_name)) AS staff_count
+        FROM timesheets
+      `),
+      this.db.query(`
+        SELECT
+          COALESCE(SUM(litres), 0) AS total_litres,
+          COALESCE(SUM(total_cost), 0) AS total_cost,
+          COALESCE(AVG(price_per_litre), 0) AS avg_price
+        FROM fuel_logs
+      `),
+      this.db.query(`
+        SELECT status, COUNT(*) AS count, COALESCE(SUM(total_price), 0) AS value
+        FROM supplier_orders
+        GROUP BY status
+      `),
+      this.db.query(`
+        SELECT
+          r.type,
+          r.status,
+          r.description,
+          p.name AS paddock_name
+        FROM recommendations r
+        LEFT JOIN paddocks p ON p.id = r.paddock_id
+        ORDER BY r.created_at DESC
+        LIMIT 10
+      `),
     ]);
 
-    const total = parseFloat(costs.rows[0].total);
-    const monthTotal = parseFloat(costs.rows[0].month_total);
-    const paddockCount = parseInt(paddocks.rows[0].count);
-    const totalHa = parseFloat(paddocks.rows[0].ha);
-    const pendingRecs = parseInt(recs.rows[0].pending);
-    const pendingOrders = parseInt(orders.rows[0].pending);
-    const totalHours = parseFloat(labourHours.rows[0].total);
+    // Paddocks section
+    const paddockLines = paddocks.rows.map((p: any) => {
+      const ha = p.land_area ? `${parseFloat(p.land_area).toFixed(1)} ha` : 'area unknown';
+      const crop = p.crop_type || 'no crop set';
+      const sowing = p.sowing_date ? `, sown ${p.sowing_date.toString().slice(0, 10)}` : '';
+      const cost = parseFloat(p.total_cost);
+      const coords =
+        p.latitude && p.longitude
+          ? `, coords (${parseFloat(p.latitude).toFixed(4)}, ${parseFloat(p.longitude).toFixed(4)})`
+          : '';
+      return `  - ${p.name}: ${ha}, crop: ${crop}${sowing}, total spend: $${cost.toFixed(2)}${coords}`;
+    });
 
-    return {
-      reply: `Here's your farm overview:\n\n📊 **Total Costs:** ${fmt(total)}\n📅 **This Month:** ${fmt(monthTotal)}\n🌾 **Paddocks:** ${paddockCount} (${totalHa.toFixed(1)} ha total)\n⏱ **Staff Hours Logged:** ${totalHours.toFixed(1)} hrs\n📋 **Pending Recommendations:** ${pendingRecs}\n🛒 **Pending Orders:** ${pendingOrders}`,
-      data: { total, month_total: monthTotal, paddocks: paddockCount, total_ha: totalHa },
-    };
-  }
-
-  private async getCostSummary() {
-    const { rows } = await this.db.query(`
-      SELECT
-        source,
-        COALESCE(SUM(amount),0) as total,
-        COUNT(*) as count
-      FROM financial_transactions
-      GROUP BY source
-    `);
-
-    const bySource: Record<string, number> = {};
+    // Costs by source
+    const costMap: Record<string, number> = {};
     let grandTotal = 0;
-    rows.forEach(r => {
-      bySource[r.source] = parseFloat(r.total);
+    costs.rows.forEach((r: any) => {
+      costMap[r.source] = parseFloat(r.total);
       grandTotal += parseFloat(r.total);
     });
 
-    const labour   = bySource['labour']   ?? 0;
-    const fuel     = bySource['fuel']     ?? 0;
-    const supplier = bySource['supplier'] ?? 0;
+    // Labour
+    const lab = labour.rows[0];
+    const labHours = parseFloat(lab.total_hours).toFixed(1);
+    const labCost = parseFloat(lab.total_cost).toFixed(2);
 
-    return {
-      reply: `Here's your cost breakdown:\n\n💰 **Total:** ${fmt(grandTotal)}\n👷 **Labour:** ${fmt(labour)} (${grandTotal > 0 ? Math.round(labour/grandTotal*100) : 0}%)\n⛽ **Fuel:** ${fmt(fuel)} (${grandTotal > 0 ? Math.round(fuel/grandTotal*100) : 0}%)\n📦 **Supplier:** ${fmt(supplier)} (${grandTotal > 0 ? Math.round(supplier/grandTotal*100) : 0}%)`,
-      data: { total: grandTotal, labour, fuel, supplier },
-    };
-  }
+    // Fuel
+    const f = fuel.rows[0];
+    const fuelLitres = parseFloat(f.total_litres).toFixed(0);
+    const fuelCost = parseFloat(f.total_cost).toFixed(2);
+    const fuelAvg = parseFloat(f.avg_price).toFixed(3);
 
-  private async getLabourSummary() {
-    const { rows } = await this.db.query(`
-      SELECT
-        COALESCE(SUM(t.hours),0) as total_hours,
-        COALESCE(SUM(t.total_cost),0) as total_cost,
-        COUNT(DISTINCT t.user_id) as staff_count,
-        COUNT(*) as entry_count
-      FROM timesheets t
-    `);
-    const r = rows[0];
-    const hours = parseFloat(r.total_hours);
-    const cost  = parseFloat(r.total_cost);
-    const avgRate = hours > 0 ? cost / hours : 0;
+    // Orders
+    const ordMap: Record<string, { count: number; value: number }> = {};
+    orders.rows.forEach((r: any) => {
+      ordMap[r.status] = { count: parseInt(r.count), value: parseFloat(r.value) };
+    });
 
-    const { rows: topStaff } = await this.db.query(`
-      SELECT COALESCE(u.name, t.staff_name, 'Unknown') as name, SUM(t.hours) as hours, SUM(t.total_cost) as cost
-      FROM timesheets t LEFT JOIN users u ON u.id = t.user_id
-      GROUP BY COALESCE(u.name, t.staff_name, 'Unknown') ORDER BY hours DESC LIMIT 3
-    `);
+    // Recommendations
+    const recLines = recs.rows.map((r: any) => `  - [${r.status}] ${r.type} — ${r.paddock_name || 'unknown paddock'}${r.description ? ': ' + r.description : ''}`);
 
-    const topList = topStaff.map(s => `  • ${s.name}: ${parseFloat(s.hours).toFixed(1)} hrs (${fmt(parseFloat(s.cost))})`).join('\n');
+    return `
+=== PADDOCKS (${paddocks.rows.length} total) ===
+${paddockLines.join('\n') || '  None'}
 
-    return {
-      reply: `Labour Summary:\n\n⏱ **Total Hours:** ${hours.toFixed(1)} hrs\n💰 **Total Labour Cost:** ${fmt(cost)}\n📊 **Avg Rate:** ${fmt(avgRate)}/hr\n👷 **Staff Members:** ${parseInt(r.staff_count)}\n\nTop workers:\n${topList || '  No data yet'}`,
-      data: { total_hours: hours, total_cost: cost, staff_count: parseInt(r.staff_count) },
-    };
-  }
+=== FINANCIAL OVERVIEW ===
+Grand total spend: $${grandTotal.toFixed(2)}
+  Labour:   $${(costMap['labour'] ?? 0).toFixed(2)}
+  Fuel:     $${(costMap['fuel'] ?? 0).toFixed(2)}
+  Supplier: $${(costMap['supplier'] ?? 0).toFixed(2)}
 
-  private async getFuelSummary() {
-    const { rows } = await this.db.query(`
-      SELECT
-        COALESCE(SUM(fl.litres),0) as total_litres,
-        COALESCE(SUM(fl.total_cost),0) as total_cost,
-        COALESCE(AVG(fl.price_per_litre),0) as avg_price
-      FROM fuel_logs fl
-    `);
-    const r = rows[0];
-    const litres = parseFloat(r.total_litres);
-    const cost   = parseFloat(r.total_cost);
-    const avgPrice = parseFloat(r.avg_price);
+=== LABOUR ===
+Total hours: ${labHours} hrs
+Total labour cost: $${labCost}
+Staff members: ${lab.staff_count}
 
-    const { rows: byPaddock } = await this.db.query(`
-      SELECT p.name, SUM(fl.litres) as litres, SUM(fl.total_cost) as cost
-      FROM fuel_logs fl LEFT JOIN paddocks p ON p.id = fl.paddock_id
-      GROUP BY p.name ORDER BY litres DESC LIMIT 3
-    `);
+=== FUEL ===
+Total litres: ${fuelLitres} L
+Total fuel cost: $${fuelCost}
+Average price per litre: $${fuelAvg}
 
-    const paddockList = byPaddock.map(p => `  • ${p.name}: ${parseFloat(p.litres).toFixed(0)}L (${fmt(parseFloat(p.cost))})`).join('\n');
+=== SUPPLIER ORDERS ===
+Pending:   ${ordMap['pending']?.count ?? 0} orders ($${(ordMap['pending']?.value ?? 0).toFixed(2)})
+Ordered:   ${ordMap['ordered']?.count ?? 0} orders ($${(ordMap['ordered']?.value ?? 0).toFixed(2)})
+Delivered: ${ordMap['delivered']?.count ?? 0} orders ($${(ordMap['delivered']?.value ?? 0).toFixed(2)})
 
-    return {
-      reply: `Fuel Summary:\n\n⛽ **Total Litres:** ${litres.toFixed(0)}L\n💰 **Total Cost:** ${fmt(cost)}\n📊 **Avg Price/L:** ${fmt(avgPrice)}\n\nTop paddocks by usage:\n${paddockList || '  No data yet'}`,
-      data: { total_litres: litres, total_cost: cost, avg_price: avgPrice },
-    };
-  }
-
-  private async getSupplierSummary() {
-    const { rows } = await this.db.query(`
-      SELECT
-        status,
-        COUNT(*) as count,
-        COALESCE(SUM(total_price),0) as total_value
-      FROM supplier_orders
-      GROUP BY status
-    `);
-
-    const byStatus: Record<string, any> = {};
-    rows.forEach(r => { byStatus[r.status] = { count: parseInt(r.count), value: parseFloat(r.total_value) }; });
-
-    const { rows: topProducts } = await this.db.query(`
-      SELECT product_name, COUNT(*) as orders, SUM(total_price) as total
-      FROM supplier_orders
-      GROUP BY product_name ORDER BY total DESC LIMIT 3
-    `);
-
-    const productList = topProducts.map(p => `  • ${p.product_name}: ${p.orders} order(s) — ${fmt(parseFloat(p.total))}`).join('\n');
-    const pending   = byStatus['pending']   ?? { count: 0, value: 0 };
-    const ordered   = byStatus['ordered']   ?? { count: 0, value: 0 };
-    const delivered = byStatus['delivered'] ?? { count: 0, value: 0 };
-
-    return {
-      reply: `Supplier Orders Summary:\n\n⏳ **Pending:** ${pending.count} orders (${fmt(pending.value)})\n📦 **Ordered:** ${ordered.count} orders (${fmt(ordered.value)})\n✅ **Delivered:** ${delivered.count} orders (${fmt(delivered.value)})\n\nTop products by spend:\n${productList || '  No orders yet'}`,
-      data: { pending, ordered, delivered },
-    };
-  }
-
-  private async getPaddockSummary() {
-    const { rows } = await this.db.query(`
-      SELECT
-        p.name, p.land_area, p.crop_type,
-        COALESCE(SUM(ft.amount),0) as total_cost
-      FROM paddocks p
-      LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
-      GROUP BY p.id, p.name, p.land_area, p.crop_type
-      ORDER BY total_cost DESC
-    `);
-
-    const paddockList = rows.map(p => {
-      const cost = parseFloat(p.total_cost);
-      const ha = p.land_area ? parseFloat(p.land_area) : null;
-      const cph = ha && ha > 0 ? ` (${fmt(cost / ha)}/ha)` : '';
-      return `  • ${p.name}${ha ? ` — ${ha}ha` : ''}${p.crop_type ? `, ${p.crop_type}` : ''}: ${fmt(cost)}${cph}`;
-    }).join('\n');
-
-    return {
-      reply: `Paddock Summary (${rows.length} paddocks):\n\n${paddockList || 'No paddocks found'}`,
-      data: rows,
-    };
-  }
-
-  private async getRecommendationsSummary() {
-    const { rows } = await this.db.query(`
-      SELECT status, COUNT(*) as count FROM recommendations GROUP BY status
-    `);
-
-    const byStatus: Record<string, number> = {};
-    rows.forEach(r => { byStatus[r.status] = parseInt(r.count); });
-
-    const { rows: recent } = await this.db.query(`
-      SELECT r.type, r.status, p.name as paddock_name
-      FROM recommendations r LEFT JOIN paddocks p ON p.id = r.paddock_id
-      ORDER BY r.created_at DESC LIMIT 5
-    `);
-
-    const recentList = recent.map(r => `  • ${r.type} — ${r.paddock_name} [${r.status}]`).join('\n');
-
-    return {
-      reply: `Agronomy Recommendations:\n\n📋 **Draft:** ${byStatus['draft'] ?? 0}\n✅ **Approved:** ${byStatus['approved'] ?? 0}\n❌ **Rejected:** ${byStatus['rejected'] ?? 0}\n\nRecent recommendations:\n${recentList || '  None yet'}`,
-      data: byStatus,
-    };
+=== RECENT RECOMMENDATIONS ===
+${recLines.join('\n') || '  None'}
+`.trim();
   }
 }
 

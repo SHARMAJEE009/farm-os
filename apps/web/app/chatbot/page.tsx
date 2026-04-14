@@ -23,7 +23,7 @@ export default function ChatbotPage() {
     {
       id: '0',
       role: 'assistant',
-      content: "G'day! I'm your Farm OS assistant. I have access to all your farm data — costs, paddocks, staff, fuel, supplier orders, and recommendations.\n\nWhat would you like to know?",
+      content: "G'day! I'm your Aiag Farming assistant. I have access to all your farm data — costs, paddocks, staff, fuel, supplier orders, and recommendations.\n\nWhat would you like to know?",
       timestamp: new Date(),
     },
   ]);
@@ -132,7 +132,7 @@ export default function ChatbotPage() {
             <div className="card p-4 bg-farm-50 border-farm-100">
               <div className="flex items-center gap-2 mb-2">
                 <Tractor className="w-4 h-4 text-farm-600" />
-                <p className="text-xs font-semibold text-farm-700">Farm OS Assistant</p>
+                <p className="text-xs font-semibold text-farm-700">Aiag Farming Assistant</p>
               </div>
               <p className="text-xs text-farm-600 leading-relaxed">
                 I pull live data from your farm database to give you accurate, up-to-date answers.

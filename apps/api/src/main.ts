@@ -24,8 +24,8 @@ async function bootstrap() {
 
   // Swagger docs
   const config = new DocumentBuilder()
-    .setTitle('Farm OS API')
-    .setDescription('Farm Operating System REST API')
+    .setTitle('Aiag Farming API')
+    .setDescription('Aiag Farming REST API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -34,7 +34,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🌱 Farm OS API running on http://localhost:${port}`);
+  console.log(`🌱 Aiag Farming API running on http://localhost:${port}`);
   console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
 }
 

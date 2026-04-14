@@ -23,7 +23,7 @@ export class ChatbotService {
   async processMessage(message: string): Promise<{ reply: string }> {
     const farmContext = await this.buildFarmContext();
 
-    const systemPrompt = `You are FarmOS AI Assistant — a knowledgeable, friendly assistant for an Australian farm management platform.
+    const systemPrompt = `You are the Aiag Farming AI Assistant — a knowledgeable, friendly assistant for an Australian farm management platform (aiagfarming.com.au).
 
 You have access to the following live farm data:
 

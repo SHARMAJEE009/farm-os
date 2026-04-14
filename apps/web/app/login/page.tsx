@@ -38,8 +38,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-4">
             <Leaf className="w-8 h-8 text-farm-300" />
           </div>
-          <h1 className="text-3xl font-bold text-white">Farm OS</h1>
-          <p className="text-farm-300 mt-1">Your farm operating system</p>
+          <h1 className="text-3xl font-bold text-white">Aiag Farming</h1>
+          <p className="text-farm-300 mt-1">aiagfarming.com.au</p>
         </div>
 
         {/* Card */}

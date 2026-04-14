@@ -63,13 +63,13 @@ export function Sidebar() {
           <Tractor className="w-5 h-5 text-farm-900" />
         </div>
         <div>
-          <p className="font-bold text-white text-sm leading-none">Farm OS</p>
-          <p className="text-farm-400 text-xs mt-0.5">Operations Platform</p>
+          <p className="font-bold text-white text-sm leading-none">Aiag Farming</p>
+          <p className="text-farm-400 text-xs mt-0.5">aiagfarming.com.au</p>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {navSections.map((section) => (
           <div key={section.label}>
             <p className="px-3 mb-1.5 text-xs font-semibold text-farm-500 uppercase tracking-wider">
@@ -124,7 +124,7 @@ export function Sidebar() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-farm-900 flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Tractor className="w-5 h-5 text-farm-300" />
-          <span className="font-bold text-white text-sm">Farm OS</span>
+          <span className="font-bold text-white text-sm">Aiag Farming</span>
         </div>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}

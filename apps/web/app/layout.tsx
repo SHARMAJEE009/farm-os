@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Farm OS',
-  description: 'Farm Operating System — connecting paddocks, agronomy, staff, and finance',
+  title: 'Aiag Farming',
+  description: 'Aiag Farming — connecting paddocks, agronomy, staff, and finance',
   icons: {
     icon: '/icon.svg',
     shortcut: '/icon.svg',

@@ -13,11 +13,17 @@ import { formatDistanceToNow } from 'date-fns';
 
 const AGRO_API_KEY = '587b1967699157991ef25e887b576015';
 
-const CATEGORIES = ['All', 'Agriculture', 'Weather'];
+const CROP_EMOJI: Record<string, string> = {
+  Wheat: '🌾', Barley: '🌾', Canola: '🌼', Corn: '🌽', Soybeans: '🫘',
+  Sorghum: '🌿', Cotton: '🤍', Sunflower: '🌻', Oats: '🌾', Rice: '🍚',
+  Chickpeas: '🫘', Lentils: '🫘', Potatoes: '🥔', Lucerne: '🌿', Other: '🌱',
+};
+
+const CATEGORIES = ["Agriculture", "Paddock's Weather"];
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Agriculture: 'bg-farm-100 text-farm-700',
-  Weather: 'bg-blue-100 text-blue-700',
+  Agriculture:         'bg-farm-100 text-farm-700',
+  "Paddock's Weather": 'bg-sky-100 text-sky-700',
 };
 
 // Wind degree to compass direction
@@ -57,90 +63,90 @@ function WeatherCard({ paddock, weather, isLoading, isError }: {
   isError: boolean;
 }) {
   const w = weather?.weather?.[0];
-  const iconUrl = w ? `https://openweathermap.org/img/wn/${w.icon}@2x.png` : null;
+  const cropEmoji = paddock.crop_type ? (CROP_EMOJI[paddock.crop_type] ?? '🌱') : null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-br from-blue-500 to-blue-600 px-4 pt-4 pb-6 text-white">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="font-semibold text-base leading-tight">{paddock.name}</h3>
-          </div>
-          {iconUrl && (
-            <img src={iconUrl} alt={w?.description} className="w-14 h-14 -mt-1 -mr-2 drop-shadow" />
-          )}
-        </div>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
 
+      {/* ── Header ── */}
+      <div className="relative bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 px-5 pt-5 pb-8 text-white">
+        {/* Crop badge top-right */}
+        {cropEmoji && (
+          <div className="absolute top-4 right-4 flex flex-col items-center gap-0.5">
+            <span className="text-3xl leading-none">{cropEmoji}</span>
+            <span className="text-[10px] text-blue-100 font-medium">{paddock.crop_type}</span>
+          </div>
+        )}
+
+        {/* Paddock name */}
+        <h3 className="font-bold text-lg leading-tight pr-16">{paddock.name}</h3>
+        <p className="text-blue-200 text-xs mt-0.5">
+          {paddock.latitude?.toFixed(4)}°, {paddock.longitude?.toFixed(4)}°
+        </p>
+
+        {/* Temperature */}
         {isLoading && (
           <div className="mt-4 flex items-center gap-2 text-blue-100 text-sm">
             <div className="w-4 h-4 border-2 border-blue-200 border-t-white rounded-full animate-spin" />
             Loading weather…
           </div>
         )}
-
-        {!isLoading && !isError && weather && (
-          <div className="mt-2">
-            <div className="flex items-end gap-2">
-              <span className="text-4xl font-bold">{Math.round(weather.main.temp)}°</span>
-              <span className="text-blue-100 text-sm mb-1">
-                Feels {Math.round(weather.main.feels_like)}°
-              </span>
-            </div>
-            <p className="text-blue-100 text-sm capitalize mt-0.5">{w?.description}</p>
-          </div>
-        )}
-
         {!isLoading && isError && (
-          <div className="mt-3 flex items-center gap-1.5 text-blue-100 text-xs">
-            <AlertCircle className="w-4 h-4" />
-            Could not load weather data
+          <div className="mt-4 flex items-center gap-1.5 text-blue-100 text-sm">
+            <AlertCircle className="w-4 h-4" /> Could not load weather
+          </div>
+        )}
+        {!isLoading && !isError && weather && (
+          <div className="mt-3 flex items-end gap-3">
+            <span className="text-5xl font-bold tracking-tight">{Math.round(weather.main.temp)}°</span>
+            <div className="mb-1">
+              <p className="text-blue-100 text-sm capitalize">{w?.description ?? ''}</p>
+              <p className="text-blue-200 text-xs">Feels like {Math.round(weather.main.feels_like)}°C</p>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Stats */}
+      {/* ── Stats row ── */}
       {!isLoading && !isError && weather && (
-        <div className="grid grid-cols-3 divide-x divide-gray-100 -mt-3 mx-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="flex flex-col items-center py-3 px-2">
-            <Droplets className="w-4 h-4 text-blue-400 mb-1" />
-            <span className="text-sm font-semibold text-gray-800">{weather.main.humidity}%</span>
-            <span className="text-xs text-gray-400">Humidity</span>
+        <>
+          <div className="grid grid-cols-3 divide-x divide-gray-100 -mt-4 mx-4 bg-white rounded-xl border border-gray-100 shadow-md z-10">
+            <div className="flex flex-col items-center py-3 gap-0.5">
+              <Droplets className="w-4 h-4 text-blue-400" />
+              <span className="text-sm font-bold text-gray-800">{weather.main.humidity}%</span>
+              <span className="text-[11px] text-gray-400">Humidity</span>
+            </div>
+            <div className="flex flex-col items-center py-3 gap-0.5">
+              <Wind className="w-4 h-4 text-indigo-400" />
+              <span className="text-sm font-bold text-gray-800">{weather.wind.speed} m/s</span>
+              <span className="text-[11px] text-gray-400">{windDir(weather.wind.deg)}</span>
+            </div>
+            <div className="flex flex-col items-center py-3 gap-0.5">
+              <Cloud className="w-4 h-4 text-sky-400" />
+              <span className="text-sm font-bold text-gray-800">{weather.clouds.all}%</span>
+              <span className="text-[11px] text-gray-400">Cloud</span>
+            </div>
           </div>
-          <div className="flex flex-col items-center py-3 px-2">
-            <Wind className="w-4 h-4 text-blue-400 mb-1" />
-            <span className="text-sm font-semibold text-gray-800">{weather.wind.speed} m/s</span>
-            <span className="text-xs text-gray-400">{windDir(weather.wind.deg)}</span>
+
+          {/* ── Min / Max / Pressure ── */}
+          <div className="flex items-center justify-between px-5 py-3 mt-1 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <Thermometer className="w-3 h-3 text-blue-400" />
+              {Math.round(weather.main.temp_min)}° min
+            </span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span className="flex items-center gap-1">
+              <Thermometer className="w-3 h-3 text-red-400" />
+              {Math.round(weather.main.temp_max)}° max
+            </span>
+            <span className="w-px h-3 bg-gray-200" />
+            <span className="text-gray-400">{weather.main.pressure} hPa</span>
           </div>
-          <div className="flex flex-col items-center py-3 px-2">
-            <Cloud className="w-4 h-4 text-blue-400 mb-1" />
-            <span className="text-sm font-semibold text-gray-800">{weather.clouds.all}%</span>
-            <span className="text-xs text-gray-400">Cloud</span>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Min / Max */}
-      {!isLoading && !isError && weather && (
-        <div className="flex justify-between px-4 py-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1">
-            <Thermometer className="w-3 h-3 text-blue-400" />
-            Min {Math.round(weather.main.temp_min)}°C
-          </span>
-          <span className="flex items-center gap-1">
-            <Thermometer className="w-3 h-3 text-red-400" />
-            Max {Math.round(weather.main.temp_max)}°C
-          </span>
-          <span className="text-gray-400">{weather.main.pressure} hPa</span>
-        </div>
-      )}
-
-      {/* Coordinates */}
-      <div className="px-4 pb-3">
-        <p className="text-xs text-gray-300">
-          {paddock.latitude?.toFixed(4)}, {paddock.longitude?.toFixed(4)}
-        </p>
-      </div>
+      {/* spacer when loading/error so cards have consistent height */}
+      {(isLoading || isError) && <div className="flex-1 min-h-[80px]" />}
     </div>
   );
 }
@@ -184,8 +190,8 @@ function WeatherSection() {
 
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-4">
-        Live weather for {paddocksWithCoords.length} paddock{paddocksWithCoords.length !== 1 ? 's' : ''} · via Agromonitoring
+      <p className="text-xs text-gray-400 mb-5">
+        Live conditions for {paddocksWithCoords.length} paddock{paddocksWithCoords.length !== 1 ? 's' : ''} · updated every 10 min
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {paddocksWithCoords.map((p, i) => (
@@ -260,7 +266,7 @@ function NewsCard({ item }: { item: NewsItem }) {
 }
 
 export default function NewsPage() {
-  const [category, setCategory] = useState('All');
+  const [category, setCategory] = useState('Agriculture');
   const [search, setSearch] = useState('');
 
   const { data, isLoading, refetch, isFetching } = useQuery<NewsResponse>({
@@ -271,7 +277,7 @@ export default function NewsPage() {
 
   const filtered = useMemo(() => {
     let items = data?.items ?? [];
-    if (category !== 'All') items = items.filter(i => i.category === category);
+    items = items.filter(i => i.category === category);
     if (search.trim()) {
       const q = search.toLowerCase();
       items = items.filter(i =>
@@ -282,7 +288,7 @@ export default function NewsPage() {
     return items;
   }, [data, category, search]);
 
-  const showWeatherSection = category === 'Weather';
+  const showWeatherSection = category === "Paddock's Weather";
 
   return (
     <AppLayout>
@@ -304,7 +310,7 @@ export default function NewsPage() {
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto w-fit max-w-full">
             {CATEGORIES.map(c => (
               <button
                 key={c}
@@ -318,7 +324,6 @@ export default function NewsPage() {
             ))}
           </div>
 
-          {/* Search — hide when in Weather tab */}
           {!showWeatherSection && (
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

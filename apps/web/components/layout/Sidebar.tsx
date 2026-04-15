@@ -21,6 +21,7 @@ import {
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import Cookies from 'js-cookie';
+import { getRole, ROLE_LABELS, ROLE_NAV } from '@/lib/role';
 
 const navSections = [
   {
@@ -49,9 +50,18 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const role = getRole();
+  const allowedPaths = ROLE_NAV[role] ?? ROLE_NAV.staff;
+
+  // Filter nav sections to only allowed routes
+  const filteredSections = navSections.map(section => ({
+    ...section,
+    items: section.items.filter(item => allowedPaths.includes(item.href)),
+  })).filter(section => section.items.length > 0);
 
   const handleLogout = () => {
     Cookies.remove('token');
+    Cookies.remove('role');
     router.push('/login');
   };
 
@@ -64,13 +74,13 @@ export function Sidebar() {
         </div>
         <div>
           <p className="font-bold text-white text-sm leading-none">Aiag Farming</p>
-          <p className="text-farm-400 text-xs mt-0.5">aiagfarming.com.au</p>
+          <p className="text-farm-400 text-xs mt-0.5">{ROLE_LABELS[role]}</p>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {navSections.map((section) => (
+        {filteredSections.map((section) => (
           <div key={section.label}>
             <p className="px-3 mb-1.5 text-xs font-semibold text-farm-500 uppercase tracking-wider">
               {section.label}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useFarm } from '@/lib/farm-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Clock, Fuel, Trash2, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -36,19 +37,22 @@ export default function StaffPage() {
   const [tsModalOpen, setTsModalOpen] = useState(false);
   const [fuelModalOpen, setFuelModalOpen] = useState(false);
 
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data: timesheets, isLoading: tsLoading } = useQuery<Timesheet[]>({
-    queryKey: ['timesheets'],
+    queryKey: ['timesheets', activeFarmId],
     queryFn: () => api.get('/timesheets').then(r => r.data),
   });
 
   const { data: fuelLogs, isLoading: fuelLoading } = useQuery<FuelLog[]>({
-    queryKey: ['fuel-logs'],
+    queryKey: ['fuel-logs', activeFarmId],
     queryFn: () => api.get('/fuel-logs').then(r => r.data),
   });
 
   const { data: paddocks } = useQuery<Paddock[]>({
-    queryKey: ['paddocks'],
-    queryFn: () => api.get('/paddocks').then(r => r.data),
+    queryKey: ['paddocks', activeFarmId],
+    queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
   const { data: staffUsers } = useQuery<User[]>({

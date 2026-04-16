@@ -18,7 +18,7 @@ export class CreateFinancialTransactionDto {
 export class FinancialTransactionsService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
-  async findAll(paddockId?: string, source?: string) {
+  async findAll(paddockId?: string, source?: string, farmId?: string) {
     let sql = `
       SELECT ft.*,
         p.name as paddock_name,
@@ -38,6 +38,7 @@ export class FinancialTransactionsService {
     const conds: string[] = [];
     if (paddockId) { params.push(paddockId); conds.push(`ft.paddock_id = $${params.length}`); }
     if (source)    { params.push(source);    conds.push(`ft.source = $${params.length}`); }
+    if (farmId)    { params.push(farmId);    conds.push(`p.farm_id = $${params.length}`); }
     if (conds.length) sql += ' WHERE ' + conds.join(' AND ');
     sql += ' ORDER BY ft.created_at DESC';
     const { rows } = await this.db.query(sql, params);
@@ -79,7 +80,7 @@ export class FinancialTransactionsService {
 @Controller('financial-transactions')
 export class FinancialTransactionsController {
   constructor(private readonly service: FinancialTransactionsService) {}
-  @Get()      findAll(@Query('paddock_id') pid?: string, @Query('source') src?: string) { return this.service.findAll(pid, src); }
+  @Get()      findAll(@Query('paddock_id') pid?: string, @Query('source') src?: string, @Query('farm_id') fid?: string) { return this.service.findAll(pid, src, fid); }
   @Get(':id') findOne(@Param('id') id: string) { return this.service.findOne(id); }
   @Post()     create(@Body() dto: CreateFinancialTransactionDto) { return this.service.create(dto); }
   @Delete(':id') remove(@Param('id') id: string) { return this.service.remove(id); }

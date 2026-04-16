@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useFarm } from '@/lib/farm-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, ShoppingCart, Truck, Trash2, ChevronDown } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -27,14 +28,17 @@ export default function SupplierPage() {
   const qc = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
 
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data: orders, isLoading } = useQuery<SupplierOrder[]>({
-    queryKey: ['supplier-orders'],
+    queryKey: ['supplier-orders', activeFarmId],
     queryFn: () => api.get('/supplier-orders').then(r => r.data),
   });
 
   const { data: paddocks } = useQuery<Paddock[]>({
-    queryKey: ['paddocks'],
-    queryFn: () => api.get('/paddocks').then(r => r.data),
+    queryKey: ['paddocks', activeFarmId],
+    queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
   const { register, handleSubmit, reset } = useForm<OrderForm>();

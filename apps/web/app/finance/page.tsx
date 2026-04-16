@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useFarm } from '@/lib/farm-context';
 import { DollarSign, Users, Fuel, ShoppingCart, TrendingDown, Hash, Download, Filter } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -64,14 +65,17 @@ export default function FinancePage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [paddockFilter, setPaddockFilter] = useState<string>('all');
 
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data: transactions, isLoading: txLoading } = useQuery<FinancialTransaction[]>({
-    queryKey: ['financial-transactions'],
-    queryFn: () => api.get('/financial-transactions').then(r => r.data),
+    queryKey: ['financial-transactions', activeFarmId],
+    queryFn: () => api.get('/financial-transactions', { params: farmParams }).then(r => r.data),
   });
 
   const { data: paddockSummaries, isLoading: psLoading } = useQuery<PaddockSummary[]>({
-    queryKey: ['paddock-summaries'],
-    queryFn: () => api.get('/dashboard/paddock-summaries').then(r => r.data),
+    queryKey: ['paddock-summaries', activeFarmId],
+    queryFn: () => api.get('/dashboard/paddock-summaries', { params: farmParams }).then(r => r.data),
   });
 
   // --- Computed stats ---

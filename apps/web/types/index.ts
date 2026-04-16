@@ -16,9 +16,21 @@ export interface User {
 export interface Farm {
   id: string;
   name: string;
-  location: string;
+  location: string | null;
   country: string;
+  description: string | null;
+  state: string | null;
+  postcode: string | null;
+  total_area_hectares: number | null;
   created_at: string;
+}
+
+export interface FarmStats {
+  paddock_count: number;
+  total_hectares: number;
+  cost_this_month: number;
+  pending_recommendations: number;
+  pending_orders: number;
 }
 
 export interface Paddock {

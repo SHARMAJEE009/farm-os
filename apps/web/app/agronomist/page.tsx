@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useFarm } from '@/lib/farm-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Leaf, CheckCircle, XCircle, Clock, Trash2, AlertCircle,
@@ -175,14 +176,17 @@ export default function AgronomistPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
 
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data: recs, isLoading } = useQuery<Recommendation[]>({
-    queryKey: ['recommendations'],
+    queryKey: ['recommendations', activeFarmId],
     queryFn: () => api.get('/recommendations').then(r => r.data),
   });
 
   const { data: paddocks } = useQuery<Paddock[]>({
-    queryKey: ['paddocks'],
-    queryFn: () => api.get('/paddocks').then(r => r.data),
+    queryKey: ['paddocks', activeFarmId],
+    queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<RecForm>();

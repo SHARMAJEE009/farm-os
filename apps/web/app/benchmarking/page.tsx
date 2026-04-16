@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useFarm } from '@/lib/farm-context';
 import { BarChart3, Award, TrendingUp, Info, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import AppLayout from '@/components/layout/AppLayout';
@@ -95,9 +96,12 @@ export default function BenchmarkingPage() {
   const [chartTab, setChartTab] = useState<ChartTab>('cph');
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data, isLoading, refetch, isFetching } = useQuery<BenchmarkingData>({
-    queryKey: ['benchmarking'],
-    queryFn: () => api.get('/dashboard/benchmarking').then(r => r.data),
+    queryKey: ['benchmarking', activeFarmId],
+    queryFn: () => api.get('/dashboard/benchmarking', { params: farmParams }).then(r => r.data),
   });
 
   const rawPaddocks = data?.paddocks ?? [];

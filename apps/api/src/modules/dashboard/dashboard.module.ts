@@ -1,40 +1,89 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Pool } from 'pg';
 import { DATABASE_POOL } from '../../common/database/database.module';
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Module } from '@nestjs/common';
+
+// Helper: build a farm-scoped WHERE clause for paddock-joined queries
+function farmFilter(farmId: string | undefined) {
+  return farmId ? `AND p.farm_id = '${farmId.replace(/'/g, "''")}'` : '';
+}
+function paddockFarmFilter(farmId: string | undefined) {
+  return farmId ? `WHERE farm_id = '${farmId.replace(/'/g, "''")}'` : '';
+}
 
 @Injectable()
 export class DashboardService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
-  async getStats() {
+  async getStats(farmId?: string) {
+    const pFilter = farmId ? `WHERE farm_id = $1` : '';
+    const fArgs   = farmId ? [farmId] : [];
+
     const [farms, paddocks, costs, recs, orders, recentTx] = await Promise.all([
       this.db.query('SELECT COUNT(*) FROM farms'),
-      this.db.query('SELECT COUNT(*), COALESCE(SUM(land_area),0) as total_ha FROM paddocks'),
-      this.db.query(`
-        SELECT COALESCE(SUM(amount),0) as total
-        FROM financial_transactions
-        WHERE created_at >= date_trunc('month', CURRENT_DATE)
-      `),
-      this.db.query(`SELECT COUNT(*) FROM recommendations WHERE status='draft'`),
-      this.db.query(`SELECT COUNT(*) FROM supplier_orders WHERE status='pending'`),
-      this.db.query(`
-        SELECT ft.*,
-          p.name as paddock_name,
-          CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
-          CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
-          CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name
-        FROM financial_transactions ft
-        LEFT JOIN paddocks p ON p.id = ft.paddock_id
-        LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
-        LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
-        LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
-        LEFT JOIN users labour_user ON labour_user.id = ts.user_id
-        ORDER BY ft.created_at DESC LIMIT 10
-      `),
+      this.db.query(`SELECT COUNT(*), COALESCE(SUM(land_area),0) as total_ha FROM paddocks ${pFilter}`, fArgs),
+      farmId
+        ? this.db.query(
+            `SELECT COALESCE(SUM(ft.amount),0) as total
+             FROM financial_transactions ft
+             JOIN paddocks p ON p.id = ft.paddock_id
+             WHERE p.farm_id = $1 AND ft.created_at >= date_trunc('month', CURRENT_DATE)`,
+            [farmId],
+          )
+        : this.db.query(
+            `SELECT COALESCE(SUM(amount),0) as total FROM financial_transactions
+             WHERE created_at >= date_trunc('month', CURRENT_DATE)`,
+          ),
+      farmId
+        ? this.db.query(
+            `SELECT COUNT(*) FROM recommendations r
+             JOIN paddocks p ON p.id = r.paddock_id
+             WHERE p.farm_id = $1 AND r.status = 'draft'`,
+            [farmId],
+          )
+        : this.db.query(`SELECT COUNT(*) FROM recommendations WHERE status='draft'`),
+      farmId
+        ? this.db.query(
+            `SELECT COUNT(*) FROM supplier_orders so
+             JOIN paddocks p ON p.id = so.paddock_id
+             WHERE p.farm_id = $1 AND so.status = 'pending'`,
+            [farmId],
+          )
+        : this.db.query(`SELECT COUNT(*) FROM supplier_orders WHERE status='pending'`),
+      farmId
+        ? this.db.query(
+            `SELECT ft.*,
+               p.name as paddock_name,
+               CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
+               CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
+               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name
+             FROM financial_transactions ft
+             JOIN paddocks p ON p.id = ft.paddock_id
+             LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
+             LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
+             LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
+             LEFT JOIN users labour_user ON labour_user.id = ts.user_id
+             WHERE p.farm_id = $1
+             ORDER BY ft.created_at DESC LIMIT 10`,
+            [farmId],
+          )
+        : this.db.query(
+            `SELECT ft.*,
+               p.name as paddock_name,
+               CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
+               CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
+               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name
+             FROM financial_transactions ft
+             LEFT JOIN paddocks p ON p.id = ft.paddock_id
+             LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
+             LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
+             LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
+             LEFT JOIN users labour_user ON labour_user.id = ts.user_id
+             ORDER BY ft.created_at DESC LIMIT 10`,
+          ),
     ]);
 
     return {
@@ -54,8 +103,13 @@ export class DashboardService {
     };
   }
 
-  async getPaddockSummaries() {
-    const { rows: paddocks } = await this.db.query('SELECT * FROM paddocks ORDER BY name');
+  async getPaddockSummaries(farmId?: string) {
+    const filter = farmId ? `WHERE farm_id = $1` : '';
+    const args   = farmId ? [farmId] : [];
+    const { rows: paddocks } = await this.db.query(
+      `SELECT * FROM paddocks ${filter} ORDER BY name`,
+      args,
+    );
 
     const summaries = await Promise.all(
       paddocks.map(async (p) => {
@@ -86,20 +140,24 @@ export class DashboardService {
     return summaries;
   }
 
-  async getForecasting() {
-    // Historical monthly data for last 12 months grouped by source
-    const { rows: monthly } = await this.db.query(`
-      SELECT
-        TO_CHAR(date_trunc('month', created_at), 'YYYY-MM') as month,
-        SUM(CASE WHEN source = 'labour' THEN amount ELSE 0 END) as labour,
-        SUM(CASE WHEN source = 'fuel' THEN amount ELSE 0 END) as fuel,
-        SUM(CASE WHEN source = 'supplier' THEN amount ELSE 0 END) as supplier,
-        SUM(amount) as total
-      FROM financial_transactions
-      WHERE created_at >= NOW() - INTERVAL '12 months'
-      GROUP BY date_trunc('month', created_at)
-      ORDER BY date_trunc('month', created_at) ASC
-    `);
+  async getForecasting(farmId?: string) {
+    const txJoin   = farmId ? `JOIN paddocks p ON p.id = ft.paddock_id WHERE p.farm_id = $1 AND` : `WHERE`;
+    const txArgs   = farmId ? [farmId] : [];
+    const pmJoin   = farmId ? `JOIN paddocks p ON p.id = ft.paddock_id WHERE p.farm_id = $1 AND` : `LEFT JOIN paddocks p ON p.id = ft.paddock_id WHERE`;
+
+    const { rows: monthly } = await this.db.query(
+      `SELECT
+         TO_CHAR(date_trunc('month', ft.created_at), 'YYYY-MM') as month,
+         SUM(CASE WHEN ft.source = 'labour'   THEN ft.amount ELSE 0 END) as labour,
+         SUM(CASE WHEN ft.source = 'fuel'     THEN ft.amount ELSE 0 END) as fuel,
+         SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END) as supplier,
+         SUM(ft.amount) as total
+       FROM financial_transactions ft
+       ${txJoin} ft.created_at >= NOW() - INTERVAL '12 months'
+       GROUP BY date_trunc('month', ft.created_at)
+       ORDER BY date_trunc('month', ft.created_at) ASC`,
+      txArgs,
+    );
 
     const historical = monthly.map(r => ({
       month: r.month,
@@ -110,13 +168,11 @@ export class DashboardService {
       projected: false,
     }));
 
-    // Compute 3-month average for projection
     const last3 = historical.slice(-3);
-    const avgLabour   = last3.length ? last3.reduce((s, r) => s + r.labour, 0)   / last3.length : 0;
-    const avgFuel     = last3.length ? last3.reduce((s, r) => s + r.fuel, 0)     / last3.length : 0;
+    const avgLabour   = last3.length ? last3.reduce((s, r) => s + r.labour,   0) / last3.length : 0;
+    const avgFuel     = last3.length ? last3.reduce((s, r) => s + r.fuel,     0) / last3.length : 0;
     const avgSupplier = last3.length ? last3.reduce((s, r) => s + r.supplier, 0) / last3.length : 0;
 
-    // Project next 3 months
     const projected = [];
     const now = new Date();
     for (let i = 1; i <= 3; i++) {
@@ -124,27 +180,26 @@ export class DashboardService {
       const monthStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       projected.push({
         month: monthStr,
-        labour: Math.round(avgLabour * 100) / 100,
-        fuel: Math.round(avgFuel * 100) / 100,
+        labour:   Math.round(avgLabour   * 100) / 100,
+        fuel:     Math.round(avgFuel     * 100) / 100,
         supplier: Math.round(avgSupplier * 100) / 100,
-        total: Math.round((avgLabour + avgFuel + avgSupplier) * 100) / 100,
+        total:    Math.round((avgLabour + avgFuel + avgSupplier) * 100) / 100,
         projected: true,
       });
     }
 
-    // Paddock monthly totals
-    const { rows: paddockMonthly } = await this.db.query(`
-      SELECT
-        ft.paddock_id,
-        p.name as paddock_name,
-        TO_CHAR(date_trunc('month', ft.created_at), 'YYYY-MM') as month,
-        SUM(ft.amount) as total
-      FROM financial_transactions ft
-      LEFT JOIN paddocks p ON p.id = ft.paddock_id
-      WHERE ft.created_at >= NOW() - INTERVAL '6 months'
-      GROUP BY ft.paddock_id, p.name, date_trunc('month', ft.created_at)
-      ORDER BY ft.paddock_id, date_trunc('month', ft.created_at)
-    `);
+    const { rows: paddockMonthly } = await this.db.query(
+      `SELECT
+         ft.paddock_id,
+         p.name as paddock_name,
+         TO_CHAR(date_trunc('month', ft.created_at), 'YYYY-MM') as month,
+         SUM(ft.amount) as total
+       FROM financial_transactions ft
+       ${pmJoin} ft.created_at >= NOW() - INTERVAL '6 months'
+       GROUP BY ft.paddock_id, p.name, date_trunc('month', ft.created_at)
+       ORDER BY ft.paddock_id, date_trunc('month', ft.created_at)`,
+      txArgs,
+    );
 
     return {
       monthly: [...historical, ...projected],
@@ -158,36 +213,42 @@ export class DashboardService {
     };
   }
 
-  async getBenchmarking() {
-    const { rows } = await this.db.query(`
-      SELECT
-        p.id, p.name, p.land_area, p.crop_type,
-        COALESCE(SUM(CASE WHEN ft.source = 'labour' THEN ft.amount ELSE 0 END), 0) as labour_cost,
-        COALESCE(SUM(CASE WHEN ft.source = 'fuel' THEN ft.amount ELSE 0 END), 0) as fuel_cost,
-        COALESCE(SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END), 0) as supplier_cost,
-        COALESCE(SUM(ft.amount), 0) as total_cost
-      FROM paddocks p
-      LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
-      GROUP BY p.id, p.name, p.land_area, p.crop_type
-      ORDER BY total_cost DESC
-    `);
+  async getBenchmarking(farmId?: string) {
+    const filter = farmId ? `AND p.farm_id = $1` : '';
+    const args   = farmId ? [farmId] : [];
+
+    const { rows } = await this.db.query(
+      `SELECT
+         p.id, p.name, p.land_area, p.crop_type,
+         COALESCE(SUM(CASE WHEN ft.source = 'labour'   THEN ft.amount ELSE 0 END), 0) as labour_cost,
+         COALESCE(SUM(CASE WHEN ft.source = 'fuel'     THEN ft.amount ELSE 0 END), 0) as fuel_cost,
+         COALESCE(SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END), 0) as supplier_cost,
+         COALESCE(SUM(ft.amount), 0) as total_cost
+       FROM paddocks p
+       LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
+       WHERE 1=1 ${filter}
+       GROUP BY p.id, p.name, p.land_area, p.crop_type
+       ORDER BY total_cost DESC`,
+      args,
+    );
 
     const paddocks = rows.map(r => ({
       id: r.id,
       name: r.name,
       land_area: r.land_area ? parseFloat(r.land_area) : null,
       crop_type: r.crop_type,
-      labour_cost: parseFloat(r.labour_cost),
-      fuel_cost: parseFloat(r.fuel_cost),
+      labour_cost:   parseFloat(r.labour_cost),
+      fuel_cost:     parseFloat(r.fuel_cost),
       supplier_cost: parseFloat(r.supplier_cost),
-      total_cost: parseFloat(r.total_cost),
+      total_cost:    parseFloat(r.total_cost),
       cost_per_hectare: r.land_area && parseFloat(r.land_area) > 0
         ? Math.round(parseFloat(r.total_cost) / parseFloat(r.land_area) * 100) / 100
         : null,
     }));
 
-    // Assign percentile scores based on cost per hectare (lower cost = higher score)
-    const withHa = paddocks.filter(p => p.cost_per_hectare !== null).sort((a, b) => a.cost_per_hectare - b.cost_per_hectare);
+    const withHa = paddocks.filter(p => p.cost_per_hectare !== null)
+      .sort((a, b) => a.cost_per_hectare! - b.cost_per_hectare!);
+
     const result = paddocks.map(p => {
       const rank = withHa.findIndex(x => x.id === p.id);
       const percentile = withHa.length > 1 && rank >= 0
@@ -197,15 +258,13 @@ export class DashboardService {
       return {
         ...p,
         percentile,
-        labour_pct: total > 0 ? Math.round(p.labour_cost / total * 100) : 0,
-        fuel_pct:   total > 0 ? Math.round(p.fuel_cost   / total * 100) : 0,
+        labour_pct:   total > 0 ? Math.round(p.labour_cost   / total * 100) : 0,
+        fuel_pct:     total > 0 ? Math.round(p.fuel_cost     / total * 100) : 0,
         supplier_pct: total > 0 ? Math.round(p.supplier_cost / total * 100) : 0,
       };
     });
 
-    // Industry benchmark (Australian broadacre average)
     const industryBenchmark = { cost_per_hectare: 320, labour_pct: 35, fuel_pct: 25, supplier_pct: 40 };
-
     return { paddocks: result, industry_benchmark: industryBenchmark };
   }
 }
@@ -218,16 +277,16 @@ export class DashboardController {
   constructor(private readonly service: DashboardService) {}
 
   @Get('stats')
-  getStats() { return this.service.getStats(); }
+  getStats(@Query('farm_id') farmId?: string) { return this.service.getStats(farmId); }
 
   @Get('paddock-summaries')
-  getPaddockSummaries() { return this.service.getPaddockSummaries(); }
+  getPaddockSummaries(@Query('farm_id') farmId?: string) { return this.service.getPaddockSummaries(farmId); }
 
   @Get('forecasting')
-  getForecasting() { return this.service.getForecasting(); }
+  getForecasting(@Query('farm_id') farmId?: string) { return this.service.getForecasting(farmId); }
 
   @Get('benchmarking')
-  getBenchmarking() { return this.service.getBenchmarking(); }
+  getBenchmarking(@Query('farm_id') farmId?: string) { return this.service.getBenchmarking(farmId); }
 }
 
 @Module({ controllers: [DashboardController], providers: [DashboardService] })

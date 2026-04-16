@@ -10,9 +10,10 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 export class FarmsController {
   constructor(private readonly service: FarmsService) {}
 
-  @Get()    findAll() { return this.service.findAll(); }
-  @Get(':id') findOne(@Param('id') id: string) { return this.service.findOne(id); }
-  @Post()   create(@Body() dto: CreateFarmDto) { return this.service.create(dto); }
-  @Patch(':id') update(@Param('id') id: string, @Body() dto: UpdateFarmDto) { return this.service.update(id, dto); }
-  @Delete(':id') remove(@Param('id') id: string) { return this.service.remove(id); }
+  @Get()            findAll()                                        { return this.service.findAll(); }
+  @Get(':id')       findOne(@Param('id') id: string)                 { return this.service.findOne(id); }
+  @Get(':id/stats') getStats(@Param('id') id: string)                { return this.service.getStats(id); }
+  @Post()           create(@Body() dto: CreateFarmDto)               { return this.service.create(dto); }
+  @Patch(':id')     update(@Param('id') id: string, @Body() dto: UpdateFarmDto) { return this.service.update(id, dto); }
+  @Delete(':id')    remove(@Param('id') id: string)                  { return this.service.remove(id); }
 }

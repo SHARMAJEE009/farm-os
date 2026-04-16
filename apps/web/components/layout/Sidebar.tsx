@@ -17,8 +17,9 @@ import {
   Newspaper,
   TrendingUp,
   BarChart3,
+  Building2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import Cookies from 'js-cookie';
 import { getRole, ROLE_LABELS, ROLE_NAV } from '@/lib/role';
@@ -28,7 +29,7 @@ const navSections = [
     label: 'Operations',
     items: [
       { href: '/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
-      { href: '/paddocks',     label: 'Paddocks',      icon: Map },
+      { href: '/farms',        label: 'Farm',          icon: Building2 },
       { href: '/staff',        label: 'Staff',         icon: Users },
       { href: '/agronomist',   label: 'Agronomy',      icon: Leaf },
       { href: '/supplier',     label: 'Supplier',      icon: ShoppingCart },
@@ -50,7 +51,12 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const role = getRole();
+  const [role, setRoleState] = useState<ReturnType<typeof getRole>>('staff');
+
+  useEffect(() => {
+    setRoleState(getRole());
+  }, []);
+
   const allowedPaths = ROLE_NAV[role] ?? ROLE_NAV.staff;
 
   // Filter nav sections to only allowed routes

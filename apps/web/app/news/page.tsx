@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useFarm } from '@/lib/farm-context';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { Newspaper, ExternalLink, RefreshCw, Search, Clock, Cloud, Wind, Droplets, Thermometer, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -152,9 +153,12 @@ function WeatherCard({ paddock, weather, isLoading, isError }: {
 }
 
 function WeatherSection() {
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
+
   const { data: paddocks, isLoading: paddocksLoading } = useQuery<Paddock[]>({
-    queryKey: ['paddocks'],
-    queryFn: () => api.get('/paddocks').then(r => r.data),
+    queryKey: ['paddocks', activeFarmId],
+    queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
   const paddocksWithCoords = (paddocks ?? []).filter(

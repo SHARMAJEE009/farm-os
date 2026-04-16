@@ -1,19 +1,21 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import {
-  Map, DollarSign, AlertCircle, ShoppingCart, Leaf, TrendingUp,
-  Users, Fuel, Package, CheckCircle2, Circle, ArrowRight, Clock,
-  Sprout, BarChart3, Tractor,
+  DollarSign, AlertCircle, ShoppingCart, Leaf,
+  Users, Fuel, Package, CheckCircle2, ArrowRight, Clock,
+  Sprout, Tractor,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { DashboardStats, PaddockSummary, FinancialTransaction } from '@/types';
+import type { DashboardStats, FinancialTransaction } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { getRole, UserRole } from '@/lib/role';
+import { useFarm } from '@/lib/farm-context';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const sourceConfig: Record<string, { icon: React.ElementType; color: string; bg: string; label: string }> = {
@@ -57,16 +59,6 @@ function TransactionRow({ tx }: { tx: FinancialTransaction }) {
 // ── Workflow Tracker ──────────────────────────────────────────────────────────
 function WorkflowTracker({ stats }: { stats: DashboardStats }) {
   const steps = [
-    {
-      icon: Map,
-      label: 'Paddocks',
-      desc: 'Fields registered',
-      value: stats.total_paddocks,
-      unit: 'paddocks',
-      done: stats.total_paddocks > 0,
-      color: 'bg-farm-500',
-      light: 'bg-farm-50 text-farm-700 border-farm-200',
-    },
     {
       icon: Sprout,
       label: 'Recommendations',
@@ -166,77 +158,47 @@ function WorkflowTracker({ stats }: { stats: DashboardStats }) {
 }
 
 // ── Role-based dashboard panels ───────────────────────────────────────────────
-function AdminDashboard({ stats, paddockSummaries, statsLoading, paddocksLoading }: any) {
+function AdminDashboard({ stats, statsLoading }: any) {
   return (
     <>
-      {/* Stats grid */}
       {statsLoading ? <Spinner /> : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Total Paddocks"         value={stats?.total_paddocks ?? 0}                     subtitle={`${stats?.total_hectares?.toFixed(1) ?? 0} ha total`} icon={Map}         iconColor="text-farm-600" />
-          <StatCard title="Cost This Month"         value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies"                             icon={DollarSign}  iconColor="text-orange-500" />
-          <StatCard title="Open Recommendations"   value={stats?.pending_recommendations ?? 0}           subtitle="Awaiting approval"                                      icon={Leaf}        iconColor="text-emerald-600" />
-          <StatCard title="Pending Orders"          value={stats?.pending_orders ?? 0}                    subtitle="Supplier orders"                                        icon={ShoppingCart} iconColor="text-blue-500" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <StatCard title="Cost This Month"       value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies" icon={DollarSign}   iconColor="text-orange-500" />
+          <StatCard title="Open Recommendations" value={stats?.pending_recommendations ?? 0}             subtitle="Awaiting approval"          icon={Leaf}         iconColor="text-emerald-600" />
+          <StatCard title="Pending Orders"        value={stats?.pending_orders ?? 0}                      subtitle="Supplier orders"            icon={ShoppingCart} iconColor="text-blue-500" />
         </div>
       )}
       {stats && <WorkflowTracker stats={stats} />}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <PaddockCostCard summaries={paddockSummaries} isLoading={paddocksLoading} />
-        <RecentTransactionsCard stats={stats} isLoading={statsLoading} />
-      </div>
+      <RecentTransactionsCard stats={stats} isLoading={statsLoading} />
     </>
   );
 }
 
-function ManagerDashboard({ stats, paddockSummaries, statsLoading, paddocksLoading }: any) {
+function ManagerDashboard({ stats, statsLoading }: any) {
   return (
     <>
       {statsLoading ? <Spinner /> : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard title="Total Paddocks"       value={stats?.total_paddocks ?? 0}                     subtitle={`${stats?.total_hectares?.toFixed(1) ?? 0} ha total`} icon={Map}          iconColor="text-farm-600" />
-          <StatCard title="Cost This Month"       value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies"                           icon={DollarSign}   iconColor="text-orange-500" />
-          <StatCard title="Pending Approvals"    value={stats?.pending_recommendations ?? 0}           subtitle="Recommendations to review"                              icon={AlertCircle}  iconColor="text-yellow-500" />
-          <StatCard title="Pending Orders"        value={stats?.pending_orders ?? 0}                    subtitle="Supplier orders"                                        icon={ShoppingCart} iconColor="text-blue-500" />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <StatCard title="Cost This Month"    value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies"    icon={DollarSign}   iconColor="text-orange-500" />
+          <StatCard title="Pending Approvals" value={stats?.pending_recommendations ?? 0}             subtitle="Recommendations to review"    icon={AlertCircle}  iconColor="text-yellow-500" />
+          <StatCard title="Pending Orders"     value={stats?.pending_orders ?? 0}                      subtitle="Supplier orders"              icon={ShoppingCart} iconColor="text-blue-500" />
         </div>
       )}
       {stats && <WorkflowTracker stats={stats} />}
-      <div className="grid lg:grid-cols-2 gap-6">
-        <PaddockCostCard summaries={paddockSummaries} isLoading={paddocksLoading} />
-        <RecentTransactionsCard stats={stats} isLoading={statsLoading} />
-      </div>
+      <RecentTransactionsCard stats={stats} isLoading={statsLoading} />
     </>
   );
 }
 
-function AgronomistDashboard({ stats, paddockSummaries, statsLoading, paddocksLoading }: any) {
+function AgronomistDashboard({ stats, statsLoading }: any) {
   return (
     <>
       {statsLoading ? <Spinner /> : (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <StatCard title="Total Paddocks"     value={stats?.total_paddocks ?? 0}           subtitle={`${stats?.total_hectares?.toFixed(1) ?? 0} ha`} icon={Map}   iconColor="text-farm-600" />
-          <StatCard title="My Recommendations" value={stats?.pending_recommendations ?? 0} subtitle="Drafts awaiting approval"                        icon={Sprout} iconColor="text-emerald-600" />
+        <div className="grid grid-cols-1 gap-4 mb-6">
+          <StatCard title="My Recommendations" value={stats?.pending_recommendations ?? 0} subtitle="Drafts awaiting approval" icon={Sprout} iconColor="text-emerald-600" />
         </div>
       )}
-      <div className="card">
-        <h2 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Map className="w-4 h-4 text-farm-600" />
-          Paddock Overview
-        </h2>
-        {paddocksLoading ? <Spinner /> : paddockSummaries?.length > 0 ? (
-          <div className="space-y-1">
-            {paddockSummaries.map((p: PaddockSummary) => (
-              <div key={p.paddock.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{p.paddock.name}</p>
-                  <p className="text-xs text-gray-400">{p.paddock.crop_type || 'No crop'} · {p.paddock.land_area ?? '?'} ha</p>
-                </div>
-                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                  {p.open_recommendations} recs
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-sm text-gray-400 py-6 text-center">No paddocks yet</p>}
-      </div>
+      <RecentTransactionsCard stats={stats} isLoading={statsLoading} />
     </>
   );
 }
@@ -245,9 +207,8 @@ function StaffDashboard({ stats, statsLoading }: any) {
   return (
     <>
       {statsLoading ? <Spinner /> : (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <StatCard title="Paddocks"      value={stats?.total_paddocks ?? 0}  subtitle="Active fields"    icon={Map}   iconColor="text-farm-600" />
-          <StatCard title="Pending Tasks" value={stats?.pending_orders ?? 0}  subtitle="Supplier orders"  icon={Clock} iconColor="text-orange-500" />
+        <div className="grid grid-cols-1 gap-4 mb-6">
+          <StatCard title="Pending Tasks" value={stats?.pending_orders ?? 0} subtitle="Supplier orders" icon={Clock} iconColor="text-orange-500" />
         </div>
       )}
       <div className="card">
@@ -276,9 +237,8 @@ function SupplierDashboard({ stats, statsLoading }: any) {
   return (
     <>
       {statsLoading ? <Spinner /> : (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <StatCard title="Pending Orders"   value={stats?.pending_orders ?? 0}  subtitle="Awaiting action"  icon={ShoppingCart} iconColor="text-blue-500" />
-          <StatCard title="Total Paddocks"   value={stats?.total_paddocks ?? 0}  subtitle="On this farm"     icon={Map}          iconColor="text-farm-600" />
+        <div className="grid grid-cols-1 gap-4 mb-6">
+          <StatCard title="Pending Orders" value={stats?.pending_orders ?? 0} subtitle="Awaiting action" icon={ShoppingCart} iconColor="text-blue-500" />
         </div>
       )}
       <div className="card">
@@ -376,17 +336,15 @@ const ROLE_GREETINGS: Record<UserRole, string> = {
 };
 
 export default function DashboardPage() {
-  const role = getRole();
+  const [role, setRole] = useState<UserRole>('staff');
+  useEffect(() => { setRole(getRole()); }, []);
+
+  const { activeFarmId } = useFarm();
+  const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-    queryKey: ['dashboard-stats'],
-    queryFn: () => api.get('/dashboard/stats').then(r => r.data),
-  });
-
-  const { data: paddockSummaries, isLoading: paddocksLoading } = useQuery<PaddockSummary[]>({
-    queryKey: ['paddock-summaries'],
-    queryFn: () => api.get('/dashboard/paddock-summaries').then(r => r.data),
-    enabled: role === 'owner' || role === 'manager' || role === 'agronomist',
+    queryKey: ['dashboard-stats', activeFarmId],
+    queryFn: () => api.get('/dashboard/stats', { params: farmParams }).then(r => r.data),
   });
 
   return (
@@ -394,11 +352,11 @@ export default function DashboardPage() {
       <div className="p-4 sm:p-6">
         <PageHeader title="Dashboard" subtitle={ROLE_GREETINGS[role]} />
 
-        {role === 'owner'      && <AdminDashboard     stats={stats} paddockSummaries={paddockSummaries} statsLoading={statsLoading} paddocksLoading={paddocksLoading} />}
-        {role === 'manager'    && <ManagerDashboard   stats={stats} paddockSummaries={paddockSummaries} statsLoading={statsLoading} paddocksLoading={paddocksLoading} />}
-        {role === 'agronomist' && <AgronomistDashboard stats={stats} paddockSummaries={paddockSummaries} statsLoading={statsLoading} paddocksLoading={paddocksLoading} />}
-        {role === 'staff'      && <StaffDashboard     stats={stats} statsLoading={statsLoading} />}
-        {role === 'supplier'   && <SupplierDashboard  stats={stats} statsLoading={statsLoading} />}
+        {role === 'owner'      && <AdminDashboard      stats={stats} statsLoading={statsLoading} />}
+        {role === 'manager'    && <ManagerDashboard    stats={stats} statsLoading={statsLoading} />}
+        {role === 'agronomist' && <AgronomistDashboard stats={stats} statsLoading={statsLoading} />}
+        {role === 'staff'      && <StaffDashboard      stats={stats} statsLoading={statsLoading} />}
+        {role === 'supplier'   && <SupplierDashboard   stats={stats} statsLoading={statsLoading} />}
       </div>
     </AppLayout>
   );

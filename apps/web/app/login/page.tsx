@@ -32,10 +32,17 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post('/auth/login', { email, password });
+      const serverRole = res.data.user?.role as UserRole | undefined;
+
+      // If the server returned a role and it doesn't match the selected role, reject
+      if (serverRole && serverRole !== role) {
+        const actualLabel = ROLE_LABELS[serverRole] ?? serverRole;
+        setError(`These credentials belong to a "${actualLabel}" account. Please select the correct role.`);
+        return;
+      }
+
       Cookies.set('token', res.data.access_token, { expires: 7 });
-      // Use role from DB response; fall back to selected role
-      const serverRole = res.data.user?.role ?? role;
-      setRole(serverRole);
+      setRole(role);
       router.push('/dashboard');
     } catch {
       setError('Invalid credentials. Please try again.');

@@ -17,6 +17,7 @@ import { formatDate } from '@/lib/utils';
 import type { Recommendation, Paddock, SoilReport } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
+import { getRole, isAdmin } from '@/lib/role';
 
 type StatusFilter = 'all' | 'draft' | 'approved' | 'rejected';
 
@@ -84,37 +85,8 @@ function SoilDot({ status }: { status: string }) {
   return <div className={`w-1.5 h-1.5 rounded-full mx-auto mt-0.5 ${STATUS_DOT[status] ?? 'bg-gray-300'}`} />;
 }
 
-function generateDescription(r: SoilReport): string {
-  const lines: string[] = [];
-  if (r.crop) lines.push(`Crop: ${r.crop}${r.target_yield_t_ha ? ` (target ${r.target_yield_t_ha} t/ha)` : ''}`);
-  if (r.lab_name) lines.push(`Lab: ${r.lab_name}${r.sample_date ? `, sampled ${r.sample_date}` : ''}`);
-
-  const issues: string[] = [];
-  const checkList: Array<{ label: string; val?: number; status?: string; rate?: number; unit: string; rateUnit: string }> = [
-    { label: 'Nitrate-N',  val: r.nitrate_n,  status: r.nitrate_n_status,  rate: r.n_rate_kg_ha,  unit: 'mg/kg', rateUnit: 'kg N/ha'  },
-    { label: 'Phosphorus', val: r.phosphorus,  status: r.phosphorus_status, rate: r.p_rate_kg_ha,  unit: 'mg/kg', rateUnit: 'kg P/ha'  },
-    { label: 'Zinc',       val: r.zinc,        status: r.zinc_status,       rate: r.zn_rate_kg_ha, unit: 'mg/kg', rateUnit: 'kg Zn/ha' },
-    { label: 'Sulfate-S',  val: r.sulfate_s,   status: r.sulfate_s_status,  rate: r.s_rate_kg_ha,  unit: 'mg/kg', rateUnit: 'kg S/ha'  },
-  ];
-  for (const n of checkList) {
-    if (n.val != null && (n.status === 'Marginal' || n.status === 'Low')) {
-      const rateStr = n.rate ? ` → apply ${n.rate} ${n.rateUnit}` : '';
-      issues.push(`${n.label}: ${n.val} ${n.unit} (${n.status})${rateStr}`);
-    }
-  }
-  if (issues.length) lines.push(`\nSoil deficiencies:\n${issues.map(i => `• ${i}`).join('\n')}`);
-
-  if (r.recommendations?.length) {
-    lines.push(`\nRecommended products:`);
-    for (const rec of r.recommendations) {
-      lines.push(`• ${rec.timing}: ${rec.product} at ${rec.rate}`);
-    }
-  }
-  return lines.join('\n');
-}
-
 // ── Soil Health Panel (shown inside New Rec modal when paddock selected) ────
-function SoilHealthPanel({ report, onAutoFill }: { report: SoilReport; onAutoFill: () => void }) {
+function SoilHealthPanel({ report }: { report: SoilReport }) {
   const cells = [
     { label: 'pH',  value: report.ph_topsoil,     status: report.ph_topsoil_status,     fmt: (v: number) => v.toFixed(1) },
     { label: 'OC%', value: report.organic_carbon,  status: report.organic_carbon_status, fmt: (v: number) => `${v}%` },
@@ -137,7 +109,6 @@ function SoilHealthPanel({ report, onAutoFill }: { report: SoilReport; onAutoFil
         )}
       </div>
 
-      {/* Nutrient tiles */}
       {cells.length > 0 && (
         <div className="grid grid-cols-6 gap-1">
           {cells.map(c => (
@@ -152,7 +123,6 @@ function SoilHealthPanel({ report, onAutoFill }: { report: SoilReport; onAutoFil
         </div>
       )}
 
-      {/* Recommended nutrient rates */}
       {(report.n_rate_kg_ha || report.p_rate_kg_ha) && (
         <div className="flex flex-wrap gap-3 text-[10px] text-emerald-700 bg-white rounded-lg px-2 py-1.5">
           {report.n_rate_kg_ha  && <span>N: <strong>{report.n_rate_kg_ha} kg/ha</strong></span>}
@@ -161,26 +131,18 @@ function SoilHealthPanel({ report, onAutoFill }: { report: SoilReport; onAutoFil
           {report.zn_rate_kg_ha && <span>Zn: <strong>{report.zn_rate_kg_ha} kg/ha</strong></span>}
         </div>
       )}
-
-      <button
-        type="button"
-        onClick={onAutoFill}
-        className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 rounded-lg py-1.5 transition-colors"
-      >
-        <Sprout className="w-3.5 h-3.5" />
-        Auto-fill description from soil data
-      </button>
     </div>
   );
 }
 
 // ── Recommendation card ─────────────────────────────────────────────────────
-function RecCard({ rec, onApprove, onReject, onDelete, isUpdating }: {
+function RecCard({ rec, onApprove, onReject, onDelete, isUpdating, canApprove }: {
   rec: Recommendation;
   onApprove: () => void;
   onReject: () => void;
   onDelete: () => void;
   isUpdating: boolean;
+  canApprove: boolean;
 }) {
   const cfg = STATUS_CONFIG[rec.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.draft;
   const StatusIcon = cfg.icon;
@@ -220,7 +182,7 @@ function RecCard({ rec, onApprove, onReject, onDelete, isUpdating }: {
 
         <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <span className="text-xs text-gray-400">{formatDate(rec.created_at)}</span>
-          {rec.status === 'draft' && (
+          {rec.status === 'draft' && canApprove && (
             <div className="flex gap-2">
               <button onClick={onReject} disabled={isUpdating}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-100 rounded-lg text-xs font-medium transition-colors disabled:opacity-50">
@@ -245,6 +207,9 @@ export default function AgronomistPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [search, setSearch]           = useState('');
 
+  const role = getRole();
+  const canApprove = isAdmin(role);
+
   const { activeFarmId } = useFarm();
   const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
 
@@ -258,10 +223,10 @@ export default function AgronomistPage() {
     queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<RecForm>();
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<RecForm>();
 
-  // Watch selected paddock to load its soil report
   const watchedPaddockId = watch('paddock_id');
+  const selectedPaddock  = paddocks?.find(p => p.id === watchedPaddockId) ?? null;
 
   const { data: soilReports } = useQuery<SoilReport[]>({
     queryKey: ['soil-reports', watchedPaddockId],
@@ -403,6 +368,7 @@ export default function AgronomistPage() {
                 onReject={() => statusMutation.mutate({ id: rec.id, status: 'rejected' })}
                 onDelete={() => deleteMutation.mutate(rec.id)}
                 isUpdating={statusMutation.isPending}
+                canApprove={canApprove}
               />
             ))}
           </div>
@@ -430,15 +396,30 @@ export default function AgronomistPage() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+
+              {/* Crop type + sowing date — shown when a paddock is selected */}
+              {selectedPaddock && (selectedPaddock.crop_type || selectedPaddock.sowing_date) && (
+                <div className="mt-2 flex flex-wrap gap-3 bg-farm-50 border border-farm-100 rounded-lg px-3 py-2 text-xs text-farm-700">
+                  {selectedPaddock.crop_type && (
+                    <span className="flex items-center gap-1">
+                      <Sprout className="w-3 h-3 text-farm-500" />
+                      Crop: <strong className="ml-0.5">{selectedPaddock.crop_type}</strong>
+                    </span>
+                  )}
+                  {selectedPaddock.sowing_date && (
+                    <span className="flex items-center gap-1">
+                      <Sun className="w-3 h-3 text-farm-500" />
+                      Sown: <strong className="ml-0.5">
+                        {new Date(selectedPaddock.sowing_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Soil health panel — shows when paddock has a soil report */}
-            {latestSoilReport && (
-              <SoilHealthPanel
-                report={latestSoilReport}
-                onAutoFill={() => setValue('description', generateDescription(latestSoilReport))}
-              />
-            )}
+            {latestSoilReport && <SoilHealthPanel report={latestSoilReport} />}
 
             {/* Type */}
             <div>
@@ -468,9 +449,7 @@ export default function AgronomistPage() {
               <textarea
                 className="input resize-none"
                 rows={4}
-                placeholder={latestSoilReport
-                  ? 'Click "Auto-fill from soil data" above, or describe the recommendation…'
-                  : 'Describe the recommendation in detail…'}
+                placeholder="Describe the recommendation in detail…"
                 {...register('description')}
               />
             </div>

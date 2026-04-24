@@ -4,8 +4,8 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Building2, Plus, Pencil, Trash2, MapPin, Layers, DollarSign,
-  AlertCircle, ShoppingCart, Upload, FileText, X, ArrowRight,
+  Building2, Plus, Pencil, Trash2, MapPin, Layers,
+  AlertCircle, Upload, FileText, X, ArrowRight,
   Cloud, Wind, Droplets, Thermometer, ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -406,30 +406,79 @@ export default function FarmsPage() {
           </div>
         </div>
 
-        {/* ── Weather + stats ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Weather spans 2 cols */}
-          <div className="sm:col-span-2">
-            {farmCenter
-              ? <WeatherWidget lat={farmCenter.lat} lon={farmCenter.lon} />
-              : <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-5 text-white text-sm opacity-60">
-                  <Cloud className="w-5 h-5 mb-2" /> Weather available once paddock coordinates are set
-                </div>
-            }
-          </div>
-          {/* Stats */}
-          {[
-            { icon: Layers,    label: 'Paddocks',    value: farmStats ? String(farmStats.paddock_count) : '—' },
-            { icon: MapPin,    label: 'Total Area',  value: farmStats ? `${farmStats.total_hectares.toFixed(1)} ha` : '—' },
-          ].map(({ icon: Icon, label, value }) => (
-            <div key={label} className="card flex flex-col justify-between">
-              <div className="flex items-center gap-2 text-gray-400 mb-2">
-                <Icon className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+        {/* ── KPI row ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          {/* Weather card */}
+          <div className="lg:col-span-1">
+            {farmCenter ? (
+              <WeatherWidget lat={farmCenter.lat} lon={farmCenter.lon} />
+            ) : (
+              <div className="h-full min-h-[120px] bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-5 text-white flex flex-col gap-2 opacity-70">
+                <Cloud className="w-5 h-5" />
+                <p className="text-sm font-medium">Weather unavailable</p>
+                <p className="text-xs text-sky-200">Add paddocks with coordinates to see live weather</p>
               </div>
-              <p className="text-2xl font-bold text-gray-900">{value}</p>
+            )}
+          </div>
+
+          {/* Paddocks KPI */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col justify-between gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Paddocks</span>
+              <div className="w-9 h-9 rounded-xl bg-farm-50 flex items-center justify-center">
+                <Layers className="w-4.5 h-4.5 text-farm-600" />
+              </div>
             </div>
-          ))}
+            <div>
+              <p className="text-4xl font-bold text-gray-900 leading-none">
+                {farmStats ? farmStats.paddock_count : <span className="text-gray-300">—</span>}
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                {farmStats && farmStats.paddock_count > 0
+                  ? `across ${farmStats.total_hectares.toFixed(0)} ha total`
+                  : 'No paddocks yet'}
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {Array.from({ length: Math.min(farmStats?.paddock_count ?? 0, 8) }).map((_, i) => (
+                <div key={i} className="h-1.5 flex-1 rounded-full bg-farm-400 opacity-80" style={{ opacity: 0.4 + i * 0.07 }} />
+              ))}
+              {Array.from({ length: Math.max(0, 8 - (farmStats?.paddock_count ?? 0)) }).map((_, i) => (
+                <div key={i} className="h-1.5 flex-1 rounded-full bg-gray-100" />
+              ))}
+            </div>
+          </div>
+
+          {/* Total Area KPI */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col justify-between gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Area</span>
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center">
+                <MapPin className="w-4.5 h-4.5 text-emerald-600" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-end gap-1.5">
+                <p className="text-4xl font-bold text-gray-900 leading-none">
+                  {farmStats ? farmStats.total_hectares.toFixed(1) : <span className="text-gray-300">—</span>}
+                </p>
+                {farmStats && <span className="text-lg text-gray-400 font-medium mb-0.5">ha</span>}
+              </div>
+              <p className="text-sm text-gray-400 mt-1">
+                {farmStats && farmStats.total_hectares > 0
+                  ? `≈ ${(farmStats.total_hectares * 2.471).toFixed(0)} acres`
+                  : 'No area recorded'}
+              </p>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className="bg-emerald-400 h-1.5 rounded-full transition-all duration-700"
+                style={{ width: farmStats ? `${Math.min((farmStats.total_hectares / 2000) * 100, 100)}%` : '0%' }}
+              />
+            </div>
+          </div>
+
         </div>
 
         {/* ── Satellite map ── */}

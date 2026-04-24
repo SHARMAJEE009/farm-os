@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+
 import {
   LayoutDashboard,
-  Map,
   Users,
   Leaf,
   ShoppingCart,
@@ -18,6 +18,7 @@ import {
   TrendingUp,
   BarChart3,
   Building2,
+  UserPlus,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -58,8 +59,8 @@ export function Sidebar() {
   }, []);
 
   const allowedPaths = ROLE_NAV[role] ?? ROLE_NAV.staff;
+  const isAdmin = role === 'owner';
 
-  // Filter nav sections to only allowed routes
   const filteredSections = navSections.map(section => ({
     ...section,
     items: section.items.filter(item => allowedPaths.includes(item.href)),
@@ -114,6 +115,23 @@ export function Sidebar() {
             </div>
           </div>
         ))}
+
+        {/* Admin quick action */}
+        {isAdmin && (
+          <div>
+            <p className="px-3 mb-1.5 text-xs font-semibold text-farm-500 uppercase tracking-wider">
+              Quick Actions
+            </p>
+            <Link
+              href="/team?add=1"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-farm-300 hover:text-white hover:bg-farm-700/50 transition-colors"
+            >
+              <UserPlus className="w-4 h-4 flex-shrink-0" />
+              Add Member
+            </Link>
+          </div>
+        )}
       </nav>
 
       {/* Logout */}

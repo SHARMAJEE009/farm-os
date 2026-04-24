@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDczpKdbpfzdHUXwcp-wqjTxoNcYAse0is';
 
@@ -61,31 +61,46 @@ function polygonAreaHa(coords: LatLngTuple[]): number {
   return Math.abs((area * R * R) / 2) / 10_000;
 }
 
+// ── KML namespace-safe helpers ───────────────────────────────────────────────
+function kmlTag(el: Element | Document, tag: string): Element | null {
+  return el.getElementsByTagName(tag)[0] ?? null;
+}
+function kmlTags(el: Element | Document, tag: string): Element[] {
+  return Array.from(el.getElementsByTagName(tag));
+}
+function kmlText(el: Element | Document, tag: string): string | null {
+  return kmlTag(el, tag)?.textContent?.trim() ?? null;
+}
+
 // ── Multi-placemark KML parser ───────────────────────────────────────────────
 export function parseKmlMulti(text: string): KmlPlacemark[] {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(text, 'text/xml');
-  if (doc.querySelector('parsererror')) throw new Error('Invalid KML file — could not parse XML.');
+  // Parse as text/xml for proper XML handling; fall back to text/html if it fails
+  let doc = parser.parseFromString(text, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    doc = parser.parseFromString(text, 'text/html') as unknown as XMLDocument;
+  }
 
-  const placemarks = Array.from(doc.querySelectorAll('Placemark'));
-  if (placemarks.length === 0) throw new Error('No Placemarks found in KML file.');
+  const placemarks = kmlTags(doc, 'Placemark');
+  if (placemarks.length === 0) throw new Error('No Placemarks found in KML file. Make sure the file contains polygon boundaries.');
 
-  return placemarks.map((pm) => {
-    const name = pm.querySelector('name')?.textContent?.trim() ?? null;
-    const description = pm.querySelector('description')?.textContent?.trim() ?? null;
+  const results = placemarks.map((pm) => {
+    const name = kmlText(pm, 'name');
+    const description = kmlText(pm, 'description');
 
-    const coordsEl =
-      pm.querySelector('Polygon outerBoundaryIs coordinates') ??
-      pm.querySelector('Polygon coordinates') ??
-      pm.querySelector('LinearRing coordinates') ??
-      pm.querySelector('LineString coordinates') ??
-      pm.querySelector('coordinates');
+    // Try outer boundary first, then any coordinates element
+    const outerBoundary = kmlTag(pm, 'outerBoundaryIs');
+    const coordsEl = outerBoundary
+      ? kmlTag(outerBoundary, 'coordinates')
+      : kmlTag(pm, 'coordinates');
 
     if (!coordsEl?.textContent) {
       return { name, description, coords: [], centroid: { lat: 0, lng: 0 }, area_ha: null };
     }
 
-    const tuples = coordsEl.textContent.trim().split(/\s+/).filter(Boolean);
+    // KML coords are "lng,lat,alt lng,lat,alt ..." — split on whitespace then parse each tuple
+    const rawText = coordsEl.textContent.trim();
+    const tuples  = rawText.split(/\s+/).filter(Boolean);
     const coords: LatLngTuple[] = tuples
       .map(t => {
         const parts = t.split(',').map(Number);
@@ -108,6 +123,9 @@ export function parseKmlMulti(text: string): KmlPlacemark[] {
 
     return { name, description, coords, centroid, area_ha };
   }).filter(pm => pm.coords.length > 0);
+
+  if (results.length === 0) throw new Error('KML parsed but no polygon boundaries found. Ensure placemarks contain Polygon geometry.');
+  return results;
 }
 
 // ── Farm-level KML parser ────────────────────────────────────────────────────
@@ -118,22 +136,21 @@ export interface FarmKmlData {
   placemarks: KmlPlacemark[];
 }
 
-/**
- * Parse a KML file and extract both farm-level metadata and all paddock placemarks.
- * Farm name is read from <Document><name> or the first <Folder><name>.
- * Total area is the sum of all placemark polygon areas.
- */
 export function parseFarmKml(text: string): FarmKmlData {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(text, 'text/xml');
-  if (doc.querySelector('parsererror')) throw new Error('Invalid KML file — could not parse XML.');
+  let doc = parser.parseFromString(text, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length > 0) {
+    doc = parser.parseFromString(text, 'text/html') as unknown as XMLDocument;
+  }
 
-  // Farm name: prefer Document > name, fall back to first Folder > name
-  const docName = doc.querySelector('Document > name')?.textContent?.trim() ?? null;
-  const folderName = doc.querySelector('Folder > name')?.textContent?.trim() ?? null;
-  const farmName = docName || folderName;
+  // Farm name: Document > name, then first Folder > name, then first Placemark name
+  const docEl     = kmlTag(doc, 'Document');
+  const folderEl  = kmlTag(doc, 'Folder');
+  const docName   = docEl    ? kmlText(docEl, 'name')    : null;
+  const folderName = folderEl ? kmlText(folderEl, 'name') : null;
+  const farmName  = docName || folderName;
 
-  const description = doc.querySelector('Document > description')?.textContent?.trim() ?? null;
+  const description = docEl ? kmlText(docEl, 'description') : null;
 
   const placemarks = parseKmlMulti(text);
   const totalAreaHa = parseFloat(
@@ -178,8 +195,8 @@ export function FarmPaddockMap({
   const [mapMode, setMapMode] = useState<MapMode>('hybrid');
   const [ready, setReady]     = useState(false);
 
-  // Unify both paddocks and placemarks into a single shape
-  const items = (() => {
+  // Memoize items so the draw effect doesn't fire on every render
+  const items = useMemo(() => {
     if (placemarks) {
       return placemarks.map((p, i) => ({
         id: String(i),
@@ -201,27 +218,35 @@ export function FarmPaddockMap({
           : null;
       return { id: p.id ?? '', name: p.name, path, centroid };
     });
-  })();
+  }, [placemarks, paddocks]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Initialise map once
+  // Initialise map once — use a small delay so modal/container has settled in DOM
   useEffect(() => {
     loadGoogleMaps(() => {
       if (!containerRef.current || mapRef.current) return;
       const g = window.google.maps;
-      mapRef.current = new g.Map(containerRef.current, {
-        center: { lat: -25.2744, lng: 133.7751 },
-        zoom: 5,
-        mapTypeId: 'hybrid',
-        mapTypeControlOptions: { mapTypeIds: [] },
-        streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
-        gestureHandling: 'cooperative',
-      });
-      setReady(true);
+      const init = () => {
+        if (!containerRef.current) return;
+        mapRef.current = new g.Map(containerRef.current, {
+          center: { lat: -25.2744, lng: 133.7751 },
+          zoom: 5,
+          mapTypeId: 'hybrid',
+          mapTypeControlOptions: { mapTypeIds: [] },
+          streetViewControl: false,
+          fullscreenControl: true,
+          zoomControl: true,
+          gestureHandling: 'cooperative',
+        });
+        // Trigger resize so the map fills the container correctly (important inside modals)
+        g.event.trigger(mapRef.current, 'resize');
+        setReady(true);
+      };
+      // Small timeout lets the modal finish its CSS layout before Maps reads container size
+      setTimeout(init, 80);
     });
     return () => {
       drawRef.current.forEach(d => d.setMap(null));
+      drawRef.current = [];
       mapRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,7 +255,7 @@ export function FarmPaddockMap({
     if (mapRef.current) mapRef.current.setMapTypeId(mapMode);
   }, [mapMode]);
 
-  // Redraw whenever data changes
+  // Redraw whenever data or ready state changes
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const g = window.google.maps;
@@ -280,7 +305,12 @@ export function FarmPaddockMap({
       }
     });
 
-    if (hasData) map.fitBounds(bounds, 48);
+    if (hasData) {
+      map.fitBounds(bounds, 48);
+      // Second resize after fitBounds so tiles render correctly
+      window.google.maps.event.trigger(map, 'resize');
+      map.fitBounds(bounds, 48);
+    }
   }, [ready, items, onPaddockClick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -293,7 +323,10 @@ export function FarmPaddockMap({
           </div>
         </div>
       )}
-      <div ref={containerRef} className="absolute inset-0" />
+
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* Satellite / Street toggle — top right */}
       <div className="absolute top-2 right-2 z-[5] flex rounded-lg overflow-hidden shadow-md border border-gray-200">
         {([['hybrid', 'Satellite'], ['roadmap', 'Street']] as [MapMode, string][]).map(([mode, label]) => (
           <button

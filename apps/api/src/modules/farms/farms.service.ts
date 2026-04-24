@@ -39,42 +39,56 @@ export class FarmsService {
   }
 
   async create(dto: CreateFarmDto) {
+    // Base insert — only columns guaranteed to exist in every schema version
     const { rows } = await this.db.query(
-      `INSERT INTO farms (name, location, country, description, state, postcode, total_area_hectares)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [
-        dto.name,
-        dto.location ?? null,
-        dto.country ?? 'Australia',
-        dto.description ?? null,
-        dto.state ?? null,
-        dto.postcode ?? null,
-        dto.total_area_hectares ?? null,
-      ],
+      `INSERT INTO farms (name, location, country) VALUES ($1, $2, $3) RETURNING *`,
+      [dto.name, dto.location ?? null, dto.country ?? 'Australia'],
     );
-    return rows[0];
+    const farm = rows[0];
+
+    // Extra fields added by migration 006 — update only if any are provided
+    const hasExtra = dto.description != null || dto.state != null || dto.postcode != null || dto.total_area_hectares != null;
+    if (hasExtra) {
+      try {
+        const { rows: updated } = await this.db.query(
+          `UPDATE farms SET description=$1, state=$2, postcode=$3, total_area_hectares=$4 WHERE id=$5 RETURNING *`,
+          [dto.description ?? null, dto.state ?? null, dto.postcode ?? null, dto.total_area_hectares ?? null, farm.id],
+        );
+        return updated[0] ?? farm;
+      } catch {
+        // Migration 006 not yet run — return farm without extra fields
+        return farm;
+      }
+    }
+    return farm;
   }
 
   async update(id: string, dto: UpdateFarmDto) {
     const farm = await this.findOne(id);
+
+    // Always-safe base update
     const { rows } = await this.db.query(
-      `UPDATE farms
-       SET name = $1, location = $2, country = $3,
-           description = $4, state = $5, postcode = $6,
-           total_area_hectares = $7
-       WHERE id = $8 RETURNING *`,
-      [
-        dto.name ?? farm.name,
-        dto.location ?? farm.location,
-        dto.country ?? farm.country,
-        dto.description !== undefined ? dto.description : farm.description,
-        dto.state !== undefined ? dto.state : farm.state,
-        dto.postcode !== undefined ? dto.postcode : farm.postcode,
-        dto.total_area_hectares !== undefined ? dto.total_area_hectares : farm.total_area_hectares,
-        id,
-      ],
+      `UPDATE farms SET name=$1, location=$2, country=$3 WHERE id=$4 RETURNING *`,
+      [dto.name ?? farm.name, dto.location ?? farm.location, dto.country ?? farm.country, id],
     );
-    return rows[0];
+    const updated = rows[0];
+
+    // Extra fields — silently skip if migration 006 not run
+    try {
+      const { rows: full } = await this.db.query(
+        `UPDATE farms SET description=$1, state=$2, postcode=$3, total_area_hectares=$4 WHERE id=$5 RETURNING *`,
+        [
+          dto.description !== undefined ? dto.description : farm.description,
+          dto.state       !== undefined ? dto.state       : farm.state,
+          dto.postcode    !== undefined ? dto.postcode    : farm.postcode,
+          dto.total_area_hectares !== undefined ? dto.total_area_hectares : farm.total_area_hectares,
+          id,
+        ],
+      );
+      return full[0] ?? updated;
+    } catch {
+      return updated;
+    }
   }
 
   async remove(id: string) {

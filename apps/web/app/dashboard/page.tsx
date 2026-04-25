@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { DashboardStats, FinancialTransaction } from '@/types';
+import type { DashboardStats, FinancialTransaction, PaddockSummary } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { getRole, UserRole } from '@/lib/role';
 import { useFarm } from '@/lib/farm-context';

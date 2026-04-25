@@ -158,9 +158,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-xs text-gray-400 mt-6 text-center">
-            Demo: owner@farm.com / password123
-          </p>
         </div>
       </div>
     </div>

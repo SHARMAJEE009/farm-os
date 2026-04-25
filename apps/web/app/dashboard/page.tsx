@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import {
   DollarSign, AlertCircle, ShoppingCart, Leaf,
   Users, Fuel, Package, CheckCircle2, ArrowRight, Clock,
-  Sprout, Tractor,
+  Sprout, Tractor, TrendingUp,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';

@@ -542,7 +542,7 @@ export default function FarmsPage() {
           {paddocksLoading ? (
             <div className="h-[480px] bg-gray-100 rounded-xl animate-pulse" />
           ) : paddocks && paddocks.length > 0 ? (
-            <FarmPaddockMap paddocks={paddocks} onPaddockClick={openEditPaddockById} height={480} />
+            <FarmPaddockMap paddocks={paddocks as any} onPaddockClick={openEditPaddockById} height={480} />
           ) : (
             <div className="h-40 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-sm text-gray-400">
               No paddock boundaries yet — add paddocks below

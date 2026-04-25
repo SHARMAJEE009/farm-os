@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -209,7 +209,7 @@ function MemberCard({ user, onEdit, onDelete }: { user: User; onEdit: () => void
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
-export default function TeamPage() {
+function TeamPageInner() {
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const [modalOpen, setModalOpen]     = useState(false);
@@ -292,5 +292,13 @@ export default function TeamPage() {
         />
       </div>
     </AppLayout>
+  );
+}
+
+export default function TeamPage() {
+  return (
+    <Suspense>
+      <TeamPageInner />
+    </Suspense>
   );
 }

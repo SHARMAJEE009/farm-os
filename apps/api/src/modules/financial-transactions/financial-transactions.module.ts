@@ -24,7 +24,7 @@ export class FinancialTransactionsService {
         p.name as paddock_name,
         CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
         CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
-        CASE WHEN ft.source = 'labour' THEN labour_user.name END as staff_name,
+        CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name,
         CASE WHEN ft.source = 'fuel' THEN fl.litres END as fuel_litres
       FROM financial_transactions ft
       LEFT JOIN paddocks p ON p.id = ft.paddock_id

@@ -112,13 +112,17 @@ export default function FinancePage() {
     { name: 'Supplier', value: totalSupplier, color: '#a855f7' },
   ].filter(d => d.value > 0);
 
-  // --- Paddock chart data ---
-  const chartData = paddockSummaries?.slice(0, 8).map(p => ({
-    name: p.paddock.name.length > 10 ? p.paddock.name.slice(0, 10) + '…' : p.paddock.name,
-    Labour: p.total_labour_cost,
-    Fuel: p.total_fuel_cost,
-    Supplier: p.total_supplier_cost,
-  })) ?? [];
+  // --- Paddock chart data (only paddocks with actual spend) ---
+  const chartData = paddockSummaries
+    ?.filter(p => p.total_cost > 0)
+    .sort((a, b) => b.total_cost - a.total_cost)
+    .slice(0, 8)
+    .map(p => ({
+      name: p.paddock.name.length > 12 ? p.paddock.name.slice(0, 12) + '…' : p.paddock.name,
+      Labour: p.total_labour_cost,
+      Fuel: p.total_fuel_cost,
+      Supplier: p.total_supplier_cost,
+    })) ?? [];
 
   // --- Unique paddocks for filter ---
   const uniquePaddocks = useMemo(() => {
@@ -165,7 +169,13 @@ export default function FinancePage() {
             }).reduce((s, t) => s + t.amount, 0) ?? 0
           )} icon={TrendingDown} iconColor="text-gray-500" />
           <StatCard title="Transactions" value={txCount} subtitle={`Avg ${formatCurrency(avgTx)} each`} icon={Hash} iconColor="text-gray-500" />
-          <StatCard title="Cost / Hectare" value={costPerHa > 0 ? formatCurrency(costPerHa) : '—'} subtitle={`${totalHa.toFixed(1)} ha total`} icon={DollarSign} iconColor="text-farm-600" />
+          <StatCard
+            title="Cost / Hectare"
+            value={costPerHa > 0 ? formatCurrency(costPerHa) : '—'}
+            subtitle={totalHa > 0 ? `across ${totalHa.toFixed(1)} ha` : 'No area recorded on paddocks'}
+            icon={DollarSign}
+            iconColor="text-farm-600"
+          />
         </div>
 
         {/* Summary stats row 2 — source breakdown */}
@@ -212,7 +222,7 @@ export default function FinancePage() {
                 <BarChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${v}`} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                   <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="Labour" stackId="a" fill="#3b82f6" />
@@ -220,7 +230,13 @@ export default function FinancePage() {
                   <Bar dataKey="Supplier" stackId="a" fill="#a855f7" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div className="text-center py-12 text-gray-400 text-sm">No cost data yet</div>}
+            ) : (
+              <div className="text-center py-12 text-gray-400">
+                <DollarSign className="w-8 h-8 mx-auto mb-2 text-gray-200" />
+                <p className="text-sm font-medium text-gray-400">No cost data yet</p>
+                <p className="text-xs text-gray-300 mt-1">Add staff timesheets, fuel logs, or supplier orders to see costs here</p>
+              </div>
+            )}
           </div>
 
           {/* Pie chart */}
@@ -248,7 +264,12 @@ export default function FinancePage() {
                   ))}
                 </div>
               </div>
-            ) : <div className="text-center py-12 text-gray-400 text-sm">No data</div>}
+            ) : (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-sm font-medium">No data</p>
+                <p className="text-xs text-gray-300 mt-1">Costs will appear once transactions are recorded</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -306,7 +327,12 @@ export default function FinancePage() {
               </tbody>
             </table>
             </div>
-          ) : <div className="text-center py-12 text-gray-400 text-sm">No financial data yet</div>}
+          ) : (
+            <div className="text-center py-12 text-gray-400">
+              <p className="text-sm font-medium">No financial data yet</p>
+              <p className="text-xs text-gray-300 mt-1">Record timesheets in Staff, fuel logs, or supplier orders to see costs per paddock</p>
+            </div>
+          )}
         </div>
 
         {/* All Transactions with filters */}

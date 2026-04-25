@@ -114,9 +114,9 @@ export class DashboardService {
     const summaries = await Promise.all(
       paddocks.map(async (p) => {
         const [labour, fuel, supplier, recs, orders] = await Promise.all([
-          this.db.query(`SELECT COALESCE(SUM(amount),0) as total FROM financial_transactions WHERE paddock_id=$1 AND source='labour'`, [p.id]),
-          this.db.query(`SELECT COALESCE(SUM(amount),0) as total FROM financial_transactions WHERE paddock_id=$1 AND source='fuel'`, [p.id]),
-          this.db.query(`SELECT COALESCE(SUM(amount),0) as total FROM financial_transactions WHERE paddock_id=$1 AND source='supplier'`, [p.id]),
+          this.db.query(`SELECT COALESCE(SUM(total_cost),0) as total FROM timesheets WHERE paddock_id=$1`, [p.id]),
+          this.db.query(`SELECT COALESCE(SUM(total_cost),0) as total FROM fuel_logs WHERE paddock_id=$1`, [p.id]),
+          this.db.query(`SELECT COALESCE(SUM(total_price),0) as total FROM supplier_orders WHERE paddock_id=$1`, [p.id]),
           this.db.query(`SELECT COUNT(*) FROM recommendations WHERE paddock_id=$1 AND status='draft'`, [p.id]),
           this.db.query(`SELECT COUNT(*) FROM supplier_orders WHERE paddock_id=$1 AND status='pending'`, [p.id]),
         ]);

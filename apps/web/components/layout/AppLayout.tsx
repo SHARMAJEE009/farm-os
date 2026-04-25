@@ -16,10 +16,11 @@ function FarmNameBar() {
     queryFn: () => api.get('/farms').then(r => r.data),
   });
 
-  // Auto-select the single farm on load
+  // Auto-select first farm; also reset if cookie has a stale/invalid ID
   useEffect(() => {
-    if (!activeFarmId && farms && farms.length > 0) {
-      setActiveFarmId(farms[0].id);
+    if (farms && farms.length > 0) {
+      const valid = activeFarmId && farms.some(f => f.id === activeFarmId);
+      if (!valid) setActiveFarmId(farms[0].id);
     }
   }, [farms, activeFarmId, setActiveFarmId]);
 

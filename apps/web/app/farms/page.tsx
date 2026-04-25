@@ -166,7 +166,7 @@ export default function FarmsPage() {
     queryFn: () => api.get('/farms').then(r => r.data),
   });
 
-  const farm = farms?.[0] ?? null;
+  const farm = (activeFarmId ? farms?.find(f => f.id === activeFarmId) : null) ?? farms?.[0] ?? null;
 
   const { data: paddocks, isLoading: paddocksLoading } = useQuery<Paddock[]>({
     queryKey: ['paddocks', farm?.id],
@@ -196,10 +196,10 @@ export default function FarmsPage() {
     };
   }, [paddocks]);
 
-  // Auto-select farm
+  // Auto-select farm and keep activeFarmId in sync
   useEffect(() => {
-    if (farm && !activeFarmId) setActiveFarmId(farm.id);
-  }, [farm, activeFarmId, setActiveFarmId]);
+    if (farm && farm.id !== activeFarmId) setActiveFarmId(farm.id);
+  }, [farm?.id]);
 
   // ── KML handling ──────────────────────────────────────────────────────────
   const handleKml = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

@@ -70,7 +70,29 @@ function kmlTags(el: Element | Document, tag: string): Element[] {
   return Array.from(el.getElementsByTagName(tag));
 }
 function kmlText(el: Element | Document, tag: string): string | null {
-  return kmlTag(el, tag)?.textContent?.trim() ?? null;
+  const children = el.childNodes;
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (child.nodeType === 1 && (child as Element).tagName.toLowerCase() === tag.toLowerCase()) {
+      return child.textContent?.trim() ?? null;
+    }
+  }
+  return null;
+}
+
+function getBestName(pm: Element): string {
+  let name = kmlText(pm, 'name');
+  if (!name || /^(placemark|untitled|polygon|path)/i.test(name)) {
+    let parent = pm.parentNode as Element;
+    while (parent && parent.nodeType === 1) {
+      const parentName = kmlText(parent, 'name');
+      if (parentName && !/^(placemark|features|valais)/i.test(parentName)) {
+         return parentName.replace(/\.kml$/i, '').trim();
+      }
+      parent = parent.parentNode as Element;
+    }
+  }
+  return name && name.trim() !== '' ? name.trim() : 'Unnamed Paddock';
 }
 
 // ── Multi-placemark KML parser ───────────────────────────────────────────────
@@ -85,34 +107,30 @@ export function parseKmlMulti(text: string): KmlPlacemark[] {
   const placemarks = kmlTags(doc, 'Placemark');
   if (placemarks.length === 0) throw new Error('No Placemarks found in KML file. Make sure the file contains polygon boundaries.');
 
-  const results = placemarks.map((pm) => {
-    const name = kmlText(pm, 'name');
+  const results: KmlPlacemark[] = [];
+  const nameCounts = new Map<string, number>();
+
+  placemarks.forEach((pm) => {
+    const baseName = getBestName(pm as Element);
     const description = kmlText(pm, 'description');
 
-    // Try outer boundary first, then any coordinates element
-    const outerBoundary = kmlTag(pm, 'outerBoundaryIs');
-    const coordsEl = outerBoundary
-      ? kmlTag(outerBoundary, 'coordinates')
-      : kmlTag(pm, 'coordinates');
-
-    if (!coordsEl?.textContent) {
-      return { name, description, coords: [], centroid: { lat: 0, lng: 0 }, area_ha: null };
-    }
-
-    // KML coords are "lng,lat,alt lng,lat,alt ..." — split on whitespace then parse each tuple
-    const rawText = coordsEl.textContent.trim();
-    const tuples  = rawText.split(/\s+/).filter(Boolean);
-    const coords: LatLngTuple[] = tuples
-      .map(t => {
+    // Extract all coordinates from this placemark
+    const coordTags = kmlTags(pm, 'coordinates');
+    const coords: LatLngTuple[] = [];
+    
+    for (const coordsEl of coordTags) {
+      if (!coordsEl.textContent) continue;
+      const rawText = coordsEl.textContent.trim();
+      const tuples = rawText.split(/\s+/).filter(Boolean);
+      tuples.forEach(t => {
         const parts = t.split(',').map(Number);
-        if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
-        return [parts[0], parts[1]] as LatLngTuple;
-      })
-      .filter((c): c is LatLngTuple => c !== null);
-
-    if (coords.length === 0) {
-      return { name, description, coords: [], centroid: { lat: 0, lng: 0 }, area_ha: null };
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          coords.push([parts[0], parts[1]]);
+        }
+      });
     }
+
+    if (coords.length === 0) return;
 
     const lngs = coords.map(c => c[0]);
     const lats = coords.map(c => c[1]);
@@ -122,8 +140,17 @@ export function parseKmlMulti(text: string): KmlPlacemark[] {
     };
     const area_ha = coords.length >= 3 ? parseFloat(polygonAreaHa(coords).toFixed(2)) : null;
 
-    return { name, description, coords, centroid, area_ha };
-  }).filter(pm => pm.coords.length > 0);
+    let finalName = baseName;
+    if (nameCounts.has(baseName)) {
+      const count = nameCounts.get(baseName)! + 1;
+      nameCounts.set(baseName, count);
+      finalName = `${baseName} (${count})`;
+    } else {
+      nameCounts.set(baseName, 1);
+    }
+
+    results.push({ name: finalName, description, coords, centroid, area_ha });
+  });
 
   if (results.length === 0) throw new Error('KML parsed but no polygon boundaries found. Ensure placemarks contain Polygon geometry.');
   return results;

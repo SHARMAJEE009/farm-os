@@ -14,7 +14,6 @@ import { FinancialTransactionsModule } from './modules/financial-transactions/fi
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NewsModule } from './modules/news/news.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
-import { SoilReportsModule } from './modules/soil-reports/soil-reports.module';
 
 @Module({
   imports: [
@@ -33,7 +32,6 @@ import { SoilReportsModule } from './modules/soil-reports/soil-reports.module';
     DashboardModule,
     NewsModule,
     ChatbotModule,
-    SoilReportsModule,
   ],
 })
 export class AppModule {}

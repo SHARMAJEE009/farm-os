@@ -232,59 +232,7 @@ export interface NewsResponse {
   cached_at: string;
 }
 
-// Soil report types
-export interface SoilReport {
-  id: string;
-  paddock_id: string;
-  farm_id?: string;
-  file_name?: string;
-  lab_name?: string;
-  adviser_name?: string;
-  sample_date?: string;
-  crop?: string;
-  target_yield_t_ha?: number;
-  area_ha?: number;
-  soil_texture?: string;
-  soil_type?: string;
-  ph_topsoil?: number;
-  ph_topsoil_status?: string;
-  ph_subsoil?: number;
-  ph_subsoil_status?: string;
-  organic_carbon?: number;
-  organic_carbon_status?: string;
-  ec_topsoil?: number;
-  nitrate_n?: number;
-  nitrate_n_status?: string;
-  phosphorus?: number;
-  phosphorus_status?: string;
-  potassium?: number;
-  potassium_status?: string;
-  sulfate_s?: number;
-  sulfate_s_status?: string;
-  calcium?: number;
-  calcium_status?: string;
-  magnesium?: number;
-  magnesium_status?: string;
-  zinc?: number;
-  zinc_status?: string;
-  copper?: number;
-  copper_status?: string;
-  manganese?: number;
-  boron?: number;
-  recommended_n_rate?: number;
-  n_rate_kg_ha?: number;
-  p_rate_kg_ha?: number;
-  s_rate_kg_ha?: number;
-  zn_rate_kg_ha?: number;
-  recommendations?: Array<{
-    timing: string;
-    product: string;
-    application: string;
-    rate: string;
-    quantity: string;
-  }>;
-  created_at: string;
-}
+
 
 // Chatbot types
 export interface ChatMessage {

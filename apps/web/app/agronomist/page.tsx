@@ -14,7 +14,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate } from '@/lib/utils';
-import type { Recommendation, Paddock, SoilReport } from '@/types';
+import type { Recommendation, Paddock } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
 import { getRole, isAdmin } from '@/lib/role';
@@ -67,73 +67,6 @@ const FILTER_TABS: { id: StatusFilter; label: string }[] = [
   { id: 'rejected', label: 'Rejected' },
 ];
 
-// ── Soil health helpers ─────────────────────────────────────────────────────
-const STATUS_DOT: Record<string, string> = {
-  Satisfactory: 'bg-green-400', Sufficient: 'bg-green-400',
-  High: 'bg-orange-400',        Marginal:   'bg-yellow-400',
-  Low:  'bg-red-500',           Excess:     'bg-red-500',
-  Unknown: 'bg-gray-300',
-};
-const STATUS_TEXT: Record<string, string> = {
-  Satisfactory: 'text-green-700', Sufficient: 'text-green-700',
-  High:         'text-orange-700', Marginal:   'text-yellow-700',
-  Low:          'text-red-700',   Excess:      'text-red-700',
-  Unknown:      'text-gray-400',
-};
-
-function SoilDot({ status }: { status: string }) {
-  return <div className={`w-1.5 h-1.5 rounded-full mx-auto mt-0.5 ${STATUS_DOT[status] ?? 'bg-gray-300'}`} />;
-}
-
-// ── Soil Health Panel (shown inside New Rec modal when paddock selected) ────
-function SoilHealthPanel({ report }: { report: SoilReport }) {
-  const cells = [
-    { label: 'pH',  value: report.ph_topsoil,     status: report.ph_topsoil_status,     fmt: (v: number) => v.toFixed(1) },
-    { label: 'OC%', value: report.organic_carbon,  status: report.organic_carbon_status, fmt: (v: number) => `${v}%` },
-    { label: 'N',   value: report.nitrate_n,       status: report.nitrate_n_status,      fmt: (v: number) => `${v}` },
-    { label: 'P',   value: report.phosphorus,      status: report.phosphorus_status,     fmt: (v: number) => `${v}` },
-    { label: 'K',   value: report.potassium,       status: report.potassium_status,      fmt: (v: number) => `${v}` },
-    { label: 'Zn',  value: report.zinc,            status: report.zinc_status,           fmt: (v: number) => `${v}` },
-  ].filter(c => c.value != null);
-
-  return (
-    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Microscope className="w-4 h-4 text-emerald-600" />
-          <span className="text-xs font-semibold text-emerald-800">Latest Soil Report</span>
-          {report.lab_name && <span className="text-xs text-emerald-500">· {report.lab_name}</span>}
-        </div>
-        {report.sample_date && (
-          <span className="text-[10px] text-emerald-500">Sampled {report.sample_date}</span>
-        )}
-      </div>
-
-      {cells.length > 0 && (
-        <div className="grid grid-cols-6 gap-1">
-          {cells.map(c => (
-            <div key={c.label} className="bg-white rounded-lg py-1.5 text-center">
-              <p className="text-[9px] text-gray-400 leading-none">{c.label}</p>
-              <p className={`text-xs font-bold mt-0.5 leading-none ${STATUS_TEXT[c.status ?? ''] ?? 'text-gray-800'}`}>
-                {c.fmt(c.value!)}
-              </p>
-              {c.status && <SoilDot status={c.status} />}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(report.n_rate_kg_ha || report.p_rate_kg_ha) && (
-        <div className="flex flex-wrap gap-3 text-[10px] text-emerald-700 bg-white rounded-lg px-2 py-1.5">
-          {report.n_rate_kg_ha  && <span>N: <strong>{report.n_rate_kg_ha} kg/ha</strong></span>}
-          {report.p_rate_kg_ha  && <span>P: <strong>{report.p_rate_kg_ha} kg/ha</strong></span>}
-          {report.s_rate_kg_ha  && <span>S: <strong>{report.s_rate_kg_ha} kg/ha</strong></span>}
-          {report.zn_rate_kg_ha && <span>Zn: <strong>{report.zn_rate_kg_ha} kg/ha</strong></span>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Recommendation card ─────────────────────────────────────────────────────
 function RecCard({ rec, onApprove, onReject, onDelete, isUpdating, canApprove }: {
@@ -228,12 +161,6 @@ export default function AgronomistPage() {
   const watchedPaddockId = watch('paddock_id');
   const selectedPaddock  = paddocks?.find(p => p.id === watchedPaddockId) ?? null;
 
-  const { data: soilReports } = useQuery<SoilReport[]>({
-    queryKey: ['soil-reports', watchedPaddockId],
-    queryFn: () => api.get('/soil-reports', { params: { paddock_id: watchedPaddockId } }).then(r => r.data),
-    enabled: !!watchedPaddockId && modalOpen,
-  });
-  const latestSoilReport = soilReports?.[0];
 
   const createMutation = useMutation({
     mutationFn: (d: RecForm) => api.post('/recommendations', d),
@@ -418,8 +345,6 @@ export default function AgronomistPage() {
               )}
             </div>
 
-            {/* Soil health panel — shows when paddock has a soil report */}
-            {latestSoilReport && <SoilHealthPanel report={latestSoilReport} />}
 
             {/* Type */}
             <div>

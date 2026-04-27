@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS soil_reports CASCADE;

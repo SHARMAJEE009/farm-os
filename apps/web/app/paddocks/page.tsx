@@ -13,7 +13,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useFarm } from '@/lib/farm-context';
-import type { Paddock, Farm, SoilReport } from '@/types';
+import type { Paddock, Farm } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm, useWatch } from 'react-hook-form';
 import type { LatLngTuple, KmlPlacemark } from '@/components/ui/GoogleMapPicker';
@@ -53,99 +53,7 @@ const CROPS: Crop[] = [
 ];
 const CROP_MAP = Object.fromEntries(CROPS.map(c => [c.label, c]));
 
-// ── Soil report helpers ─────────────────────────────────────────────────────
-const STATUS_COLORS: Record<string, string> = {
-  Satisfactory: 'bg-green-100 text-green-700',
-  Sufficient:   'bg-green-100 text-green-700',
-  High:         'bg-orange-100 text-orange-700',
-  Marginal:     'bg-yellow-100 text-yellow-700',
-  Low:          'bg-red-100 text-red-700',
-  Excess:       'bg-red-100 text-red-700',
-  Unknown:      'bg-gray-100 text-gray-500',
-};
 
-function StatusBadge({ status }: { status: string }) {
-  const cls = STATUS_COLORS[status] ?? 'bg-gray-100 text-gray-500';
-  return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>{status}</span>;
-}
-
-type ParsedSoil = Omit<SoilReport, 'id' | 'paddock_id' | 'farm_id' | 'created_at'>;
-
-function SoilReportPreview({ data, onClear }: { data: ParsedSoil; onClear: () => void }) {
-  const nutrients = [
-    { label: 'pH (topsoil)', value: data.ph_topsoil != null ? String(data.ph_topsoil) : null, status: data.ph_topsoil_status },
-    { label: 'Organic C',    value: data.organic_carbon != null ? `${data.organic_carbon}%` : null, status: data.organic_carbon_status },
-    { label: 'Nitrate-N',    value: data.nitrate_n != null ? `${data.nitrate_n} mg/kg` : null, status: data.nitrate_n_status },
-    { label: 'Phosphorus',   value: data.phosphorus != null ? `${data.phosphorus} mg/kg` : null, status: data.phosphorus_status },
-    { label: 'Potassium',    value: data.potassium != null ? `${data.potassium} cmol+/kg` : null, status: data.potassium_status },
-    { label: 'Zinc',         value: data.zinc != null ? `${data.zinc} mg/kg` : null, status: data.zinc_status },
-    { label: 'Magnesium',    value: data.magnesium != null ? `${data.magnesium} cmol+/kg` : null, status: data.magnesium_status },
-    { label: 'Sulfate-S',    value: data.sulfate_s != null ? `${data.sulfate_s} mg/kg` : null, status: data.sulfate_s_status },
-  ].filter(n => n.value);
-
-  return (
-    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FlaskConical className="w-4 h-4 text-emerald-600" />
-          <span className="text-sm font-medium text-emerald-800">Soil Report Extracted</span>
-          {data.lab_name && <span className="text-xs text-emerald-600">· {data.lab_name}</span>}
-        </div>
-        <button type="button" onClick={onClear} className="p-1 text-emerald-400 hover:text-red-500 transition-colors">
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Meta row */}
-      <div className="flex flex-wrap gap-3 text-xs text-emerald-700">
-        {data.crop         && <span>Crop: <strong>{data.crop}</strong></span>}
-        {data.target_yield_t_ha && <span>Target: <strong>{data.target_yield_t_ha} t/ha</strong></span>}
-        {data.area_ha      && <span>Area: <strong>{data.area_ha} ha</strong></span>}
-        {data.sample_date  && <span>Sampled: <strong>{data.sample_date}</strong></span>}
-        {data.soil_texture && <span>Texture: <strong>{data.soil_texture}</strong></span>}
-      </div>
-
-      {/* Nutrient grid */}
-      {nutrients.length > 0 && (
-        <div className="grid grid-cols-2 gap-1.5">
-          {nutrients.map(n => (
-            <div key={n.label} className="flex items-center justify-between bg-white rounded-lg px-2 py-1.5">
-              <span className="text-xs text-gray-500">{n.label}</span>
-              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                <span className="text-xs font-semibold text-gray-800">{n.value}</span>
-                {n.status && <StatusBadge status={n.status} />}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Fertiliser rates */}
-      {(data.n_rate_kg_ha || data.p_rate_kg_ha || data.s_rate_kg_ha || data.zn_rate_kg_ha) && (
-        <div className="bg-white rounded-lg px-3 py-2 text-xs space-y-0.5">
-          <p className="font-semibold text-gray-600 mb-1">Recommended nutrient rates</p>
-          {data.n_rate_kg_ha  && <p className="text-gray-600">N: <strong>{data.n_rate_kg_ha} kg/ha</strong></p>}
-          {data.p_rate_kg_ha  && <p className="text-gray-600">P: <strong>{data.p_rate_kg_ha} kg/ha</strong></p>}
-          {data.s_rate_kg_ha  && <p className="text-gray-600">S: <strong>{data.s_rate_kg_ha} kg/ha</strong></p>}
-          {data.zn_rate_kg_ha && <p className="text-gray-600">Zn: <strong>{data.zn_rate_kg_ha} kg/ha</strong></p>}
-        </div>
-      )}
-
-      {/* Product recommendations */}
-      {data.recommendations && data.recommendations.length > 0 && (
-        <div className="bg-white rounded-lg px-3 py-2 text-xs space-y-0.5">
-          <p className="font-semibold text-gray-600 mb-1">Recommended products</p>
-          {data.recommendations.map((rec, i) => (
-            <p key={i} className="text-gray-600">
-              <strong>{rec.timing}:</strong> {rec.product} — {rec.rate}
-            </p>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Form ────────────────────────────────────────────────────────────────────
 interface PaddockForm {
@@ -254,18 +162,7 @@ export default function PaddocksPage() {
   const [kmlFileName, setKmlFileName] = useState<string | null>(null);
   const [kmlError, setKmlError]       = useState<string | null>(null);
 
-  // Soil report state
-  const [soilParsed, setSoilParsed]   = useState<ParsedSoil | null>(null);
-  const [soilParsing, setSoilParsing] = useState(false);
-  const [soilError, setSoilError]     = useState<string | null>(null);
-
-  // Bulk import state
-  const [bulkPlacemarks, setBulkPlacemarks] = useState<KmlPlacemark[]>([]);
-  const [bulkOpen, setBulkOpen]             = useState(false);
-
-  const fileInputRef      = useRef<HTMLInputElement>(null);
   const bulkFileInputRef  = useRef<HTMLInputElement>(null);
-  const soilFileInputRef  = useRef<HTMLInputElement>(null);
 
   const { data: paddocks, isLoading } = useQuery<Paddock[]>({
     queryKey: ['paddocks', activeFarmId],
@@ -299,19 +196,9 @@ export default function PaddocksPage() {
     boundary_geojson: kmlBoundary ? { type: 'Polygon', coordinates: [kmlBoundary] } : null,
   });
 
-  const saveSoilReport = async (paddock_id: string, farm_id: string) => {
-    if (!soilParsed) return;
-    try {
-      await api.post('/soil-reports', { paddock_id, farm_id, ...soilParsed });
-    } catch {
-      // soil report save failure is non-fatal
-    }
-  };
-
   const createMutation = useMutation({
     mutationFn: async (d: PaddockForm) => {
       const res = await api.post('/paddocks', toPayload(d, resolvedFarmId));
-      await saveSoilReport(res.data.id, resolvedFarmId);
       return res;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['paddocks'] }); closeModal(); },
@@ -321,7 +208,6 @@ export default function PaddocksPage() {
     mutationFn: async (d: PaddockForm) => {
       const { farm_id, ...payload } = toPayload(d, editItem!.farm_id);
       const res = await api.patch(`/paddocks/${editItem!.id}`, payload);
-      await saveSoilReport(editItem!.id, editItem!.farm_id);
       return res;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['paddocks'] }); closeModal(); },
@@ -332,12 +218,9 @@ export default function PaddocksPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['paddocks'] }),
   });
 
-  const resetSoil = () => { setSoilParsed(null); setSoilParsing(false); setSoilError(null); };
-
   const openCreate = () => {
     reset(); setEditItem(null);
     setKmlBoundary(null); setKmlFileName(null); setKmlError(null);
-    resetSoil();
     setModalOpen(true);
   };
 
@@ -351,14 +234,12 @@ export default function PaddocksPage() {
     setValue('sowing_date', p.sowing_date?.slice(0, 10) ?? '');
     const boundary = (p.boundary_geojson as any)?.coordinates?.[0] ?? null;
     setKmlBoundary(boundary); setKmlFileName(boundary ? 'existing boundary' : null); setKmlError(null);
-    resetSoil();
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false); setEditItem(null); reset();
     setKmlBoundary(null); setKmlFileName(null); setKmlError(null);
-    resetSoil();
   };
 
   const handleMapSelect = (lat: number, lng: number) => {
@@ -392,39 +273,7 @@ export default function PaddocksPage() {
     reader.readAsText(file);
   }, [setValue]);
 
-  // Soil report PDF upload
-  const handleSoilFile = useCallback(async (file: File) => {
-    if (!file.name.match(/\.pdf$/i)) { setSoilError('Please upload a PDF file.'); return; }
-    setSoilParsing(true); setSoilError(null); setSoilParsed(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await api.post('/soil-reports/parse', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const parsed: ParsedSoil = res.data;
-      setSoilParsed(parsed);
 
-      // Auto-fill crop type if not already set
-      if (parsed.crop && !watchedCropType) {
-        const matched = CROPS.find(c =>
-          parsed.crop!.toLowerCase().includes(c.label.toLowerCase()) ||
-          c.label.toLowerCase().includes(parsed.crop!.toLowerCase().split(' ')[0])
-        );
-        if (matched) setValue('crop_type', matched.label);
-      }
-
-      // Auto-fill paddock area (ha) if not already set
-      if (parsed.area_ha && parsed.area_ha > 0) {
-        const currentArea = (document.querySelector('input[name="land_area"]') as HTMLInputElement)?.value;
-        if (!currentArea) setValue('land_area', parsed.area_ha.toString());
-      }
-    } catch {
-      setSoilError('Failed to parse soil report. Please ensure it is a valid lab PDF.');
-    } finally {
-      setSoilParsing(false);
-    }
-  }, [setValue, watchedCropType]);
 
   // Bulk KML
   const handleBulkKmlFile = useCallback((file: File) => {
@@ -555,53 +404,7 @@ export default function PaddocksPage() {
               <input className="input" placeholder="e.g. North Block" {...register('name', { required: true })} />
             </div>
 
-            {/* ── Soil Report PDF upload ── */}
-            <div>
-              <label className="label flex items-center gap-1.5">
-                <FlaskConical className="w-3.5 h-3.5 text-emerald-600" />
-                Soil Report (PDF)
-                <span className="text-gray-400 font-normal text-xs">— auto-fills crop, area & nutrient data</span>
-              </label>
 
-              {!soilParsed && !soilParsing && (
-                <div
-                  onClick={() => soilFileInputRef.current?.click()}
-                  onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) handleSoilFile(f); }}
-                  onDragOver={e => e.preventDefault()}
-                  className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-emerald-200 rounded-xl px-4 py-4 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/40 transition-colors"
-                >
-                  <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <FlaskConical className="w-4.5 h-4.5 text-emerald-600" />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-700">Drop a lab soil report PDF</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Pinnacle Ag, Nutrient Advantage &amp; similar formats supported</p>
-                  </div>
-                  <input
-                    ref={soilFileInputRef}
-                    type="file"
-                    accept=".pdf"
-                    className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleSoilFile(f); e.target.value = ''; }}
-                  />
-                </div>
-              )}
-
-              {soilParsing && (
-                <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <Spinner />
-                  <span className="text-sm text-emerald-700">Parsing soil report…</span>
-                </div>
-              )}
-
-              {soilError && (
-                <div className="flex items-center gap-2 mt-1 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-xs">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" /> {soilError}
-                </div>
-              )}
-
-              {soilParsed && <SoilReportPreview data={soilParsed} onClear={resetSoil} />}
-            </div>
 
             <div>
               <label className="label">Crop Type</label>

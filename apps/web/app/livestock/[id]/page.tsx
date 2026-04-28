@@ -103,7 +103,8 @@ export default function MobDetailPage() {
   const exitMutation = useMutation({
     mutationFn: (d: any) => api.patch(`/livestock/mobs/${id}/exit-paddock`, {
       ...d,
-      exit_head_count: parseInt(d.exit_head_count)
+      exit_head_count: parseInt(d.exit_head_count),
+      sale_price_per_head: d.sale_price_per_head ? parseFloat(d.sale_price_per_head) : null
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['mob', id] }); setExitModal(false); },
   });
@@ -112,7 +113,8 @@ export default function MobDetailPage() {
     mutationFn: (d: any) => api.post(`/livestock/mobs/${id}/health-events`, {
       ...d,
       head_count_affected: parseInt(d.head_count_affected),
-      withholding_period_days: d.withholding_period_days ? parseInt(d.withholding_period_days) : null
+      withholding_period_days: d.withholding_period_days ? parseInt(d.withholding_period_days) : null,
+      cost_amount: d.cost_amount ? parseFloat(d.cost_amount) : 0
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['mob-health', id] }); setHealthModal(false); },
   });
@@ -399,6 +401,15 @@ export default function MobDetailPage() {
                 </select>
               </div>
             </div>
+            {exitForm.watch('exit_reason') === 'sold' && (
+              <div>
+                <label className="label">Sale Price (per head)</label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                  <input type="number" step="0.01" className="input pl-9" placeholder="0.00" {...exitForm.register('sale_price_per_head', { required: true })} />
+                </div>
+              </div>
+            )}
             <button type="submit" disabled={exitMutation.isPending} className="btn-primary w-full mt-4 bg-red-600 hover:bg-red-700">
               {exitMutation.isPending ? 'Processing…' : 'Record Exit'}
             </button>
@@ -446,6 +457,13 @@ export default function MobDetailPage() {
             <div>
               <label className="label">Head Count Affected</label>
               <input type="number" className="input" {...healthForm.register('head_count_affected', { required: true })} />
+            </div>
+            <div>
+              <label className="label">Treatment Cost</label>
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                <input type="number" step="0.01" className="input pl-9" placeholder="0.00" {...healthForm.register('cost_amount')} />
+              </div>
             </div>
             <div>
               <label className="label">Notes</label>

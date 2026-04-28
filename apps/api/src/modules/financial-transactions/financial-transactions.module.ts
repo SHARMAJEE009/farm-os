@@ -9,7 +9,7 @@ import { Module } from '@nestjs/common';
 
 export class CreateFinancialTransactionDto {
   @IsUUID() paddock_id: string;
-  @IsEnum(['labour','fuel','supplier']) source: string;
+  @IsEnum(['labour','fuel','supplier','livestock']) source: string;
   @IsOptional() @IsUUID() reference_id?: string;
   @IsNumber() @Min(0) amount: number;
 }

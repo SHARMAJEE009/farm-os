@@ -59,13 +59,15 @@ export class DashboardService {
                p.name as paddock_name,
                CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
                CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
-               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name
+               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name,
+               CASE WHEN ft.source = 'livestock' THEN m.name END as mob_name
              FROM financial_transactions ft
              JOIN paddocks p ON p.id = ft.paddock_id
              LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
              LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
              LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
              LEFT JOIN users labour_user ON labour_user.id = ts.user_id
+             LEFT JOIN mob m ON m.id = ft.reference_id AND ft.source = 'livestock'
              WHERE p.farm_id = $1
              ORDER BY ft.created_at DESC LIMIT 10`,
             [farmId],
@@ -75,13 +77,15 @@ export class DashboardService {
                p.name as paddock_name,
                CASE WHEN ft.source = 'supplier' THEN so.product_name END as product_name,
                CASE WHEN ft.source = 'supplier' THEN sup_user.name END as supplier_name,
-               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name
+               CASE WHEN ft.source = 'labour' THEN COALESCE(labour_user.name, ts.staff_name) END as staff_name,
+               CASE WHEN ft.source = 'livestock' THEN m.name END as mob_name
              FROM financial_transactions ft
              LEFT JOIN paddocks p ON p.id = ft.paddock_id
              LEFT JOIN supplier_orders so ON so.id = ft.reference_id AND ft.source = 'supplier'
              LEFT JOIN users sup_user ON sup_user.id = so.supplier_id
              LEFT JOIN timesheets ts ON ts.id = ft.reference_id AND ft.source = 'labour'
              LEFT JOIN users labour_user ON labour_user.id = ts.user_id
+             LEFT JOIN mob m ON m.id = ft.reference_id AND ft.source = 'livestock'
              ORDER BY ft.created_at DESC LIMIT 10`,
           ),
     ]);
@@ -99,6 +103,7 @@ export class DashboardService {
         product_name: r.product_name ?? null,
         supplier_name: r.supplier_name ?? null,
         staff_name: r.staff_name ?? null,
+        mob_name: r.mob_name ?? null,
       })),
     };
   }
@@ -125,12 +130,21 @@ export class DashboardService {
         const fuelCost     = parseFloat(fuel.rows[0].total);
         const supplierCost = parseFloat(supplier.rows[0].total);
 
+        // Fetch livestock costs specifically for this paddock
+        const { rows: livestock } = await this.db.query(
+          `SELECT COALESCE(SUM(amount),0) as total FROM financial_transactions 
+           WHERE paddock_id=$1 AND source='livestock'`, 
+          [p.id]
+        );
+        const livestockCost = parseFloat(livestock[0].total);
+
         return {
           paddock: p,
           total_labour_cost:   labourCost,
           total_fuel_cost:     fuelCost,
           total_supplier_cost: supplierCost,
-          total_cost:          labourCost + fuelCost + supplierCost,
+          total_livestock_cost: livestockCost,
+          total_cost:          labourCost + fuelCost + supplierCost + livestockCost,
           open_recommendations: parseInt(recs.rows[0].count),
           pending_orders:       parseInt(orders.rows[0].count),
         };
@@ -151,6 +165,7 @@ export class DashboardService {
          SUM(CASE WHEN ft.source = 'labour'   THEN ft.amount ELSE 0 END) as labour,
          SUM(CASE WHEN ft.source = 'fuel'     THEN ft.amount ELSE 0 END) as fuel,
          SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END) as supplier,
+         SUM(CASE WHEN ft.source = 'livestock' THEN ft.amount ELSE 0 END) as livestock,
          SUM(ft.amount) as total
        FROM financial_transactions ft
        ${txJoin} ft.created_at >= NOW() - INTERVAL '12 months'
@@ -164,6 +179,7 @@ export class DashboardService {
       labour: parseFloat(r.labour),
       fuel: parseFloat(r.fuel),
       supplier: parseFloat(r.supplier),
+      livestock: parseFloat(r.livestock),
       total: parseFloat(r.total),
       projected: false,
     }));
@@ -172,6 +188,7 @@ export class DashboardService {
     const avgLabour   = last3.length ? last3.reduce((s, r) => s + r.labour,   0) / last3.length : 0;
     const avgFuel     = last3.length ? last3.reduce((s, r) => s + r.fuel,     0) / last3.length : 0;
     const avgSupplier = last3.length ? last3.reduce((s, r) => s + r.supplier, 0) / last3.length : 0;
+    const avgLivestock = last3.length ? last3.reduce((s, r) => s + r.livestock, 0) / last3.length : 0;
 
     const projected = [];
     const now = new Date();
@@ -183,7 +200,8 @@ export class DashboardService {
         labour:   Math.round(avgLabour   * 100) / 100,
         fuel:     Math.round(avgFuel     * 100) / 100,
         supplier: Math.round(avgSupplier * 100) / 100,
-        total:    Math.round((avgLabour + avgFuel + avgSupplier) * 100) / 100,
+        livestock: Math.round(avgLivestock * 100) / 100,
+        total:    Math.round((avgLabour + avgFuel + avgSupplier + avgLivestock) * 100) / 100,
         projected: true,
       });
     }
@@ -223,6 +241,7 @@ export class DashboardService {
          COALESCE(SUM(CASE WHEN ft.source = 'labour'   THEN ft.amount ELSE 0 END), 0) as labour_cost,
          COALESCE(SUM(CASE WHEN ft.source = 'fuel'     THEN ft.amount ELSE 0 END), 0) as fuel_cost,
          COALESCE(SUM(CASE WHEN ft.source = 'supplier' THEN ft.amount ELSE 0 END), 0) as supplier_cost,
+         COALESCE(SUM(CASE WHEN ft.source = 'livestock' THEN ft.amount ELSE 0 END), 0) as livestock_cost,
          COALESCE(SUM(ft.amount), 0) as total_cost
        FROM paddocks p
        LEFT JOIN financial_transactions ft ON ft.paddock_id = p.id
@@ -240,6 +259,7 @@ export class DashboardService {
       labour_cost:   parseFloat(r.labour_cost),
       fuel_cost:     parseFloat(r.fuel_cost),
       supplier_cost: parseFloat(r.supplier_cost),
+      livestock_cost: parseFloat(r.livestock_cost),
       total_cost:    parseFloat(r.total_cost),
       cost_per_hectare: r.land_area && parseFloat(r.land_area) > 0
         ? Math.round(parseFloat(r.total_cost) / parseFloat(r.land_area) * 100) / 100
@@ -261,6 +281,7 @@ export class DashboardService {
         labour_pct:   total > 0 ? Math.round(p.labour_cost   / total * 100) : 0,
         fuel_pct:     total > 0 ? Math.round(p.fuel_cost     / total * 100) : 0,
         supplier_pct: total > 0 ? Math.round(p.supplier_cost / total * 100) : 0,
+        livestock_pct: total > 0 ? Math.round(p.livestock_cost / total * 100) : 0,
       };
     });
 

@@ -17,18 +17,20 @@ import {
 } from 'recharts';
 import { format, parseISO, startOfMonth } from 'date-fns';
 
-type SourceFilter = 'all' | 'labour' | 'fuel' | 'supplier';
+type SourceFilter = 'all' | 'labour' | 'fuel' | 'supplier' | 'livestock';
 
 const SOURCE_COLORS: Record<string, string> = {
   labour: '#3b82f6',
   fuel: '#f97316',
   supplier: '#a855f7',
+  livestock: '#f59e0b',
 };
 
 const SOURCE_LABELS: Record<string, string> = {
   labour: 'Labour',
   fuel: 'Fuel',
   supplier: 'Supplier',
+  livestock: 'Livestock',
 };
 
 function SourceBadge({ source }: { source: string }) {
@@ -36,6 +38,7 @@ function SourceBadge({ source }: { source: string }) {
     labour: 'bg-blue-100 text-blue-700',
     fuel: 'bg-orange-100 text-orange-700',
     supplier: 'bg-purple-100 text-purple-700',
+    livestock: 'bg-amber-100 text-amber-700',
   };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[source] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -50,7 +53,7 @@ function exportCSV(transactions: FinancialTransaction[]) {
     formatDate(tx.created_at),
     tx.source,
     tx.paddock?.name ?? tx.paddock_id,
-    tx.source === 'supplier' ? (tx.product_name ?? '') : tx.source === 'labour' ? (tx.staff_name ?? '') : '',
+    tx.source === 'supplier' ? (tx.product_name ?? '') : tx.source === 'labour' ? (tx.staff_name ?? '') : tx.source === 'livestock' ? (tx.mob_name ?? '') : '',
     tx.amount.toFixed(2),
   ]);
   const csv = [header, ...rows].map(r => r.join(',')).join('\n');
@@ -82,7 +85,8 @@ export default function FinancePage() {
   const totalLabour   = transactions?.filter(t => t.source === 'labour').reduce((s, t) => s + t.amount, 0) ?? 0;
   const totalFuel     = transactions?.filter(t => t.source === 'fuel').reduce((s, t) => s + t.amount, 0) ?? 0;
   const totalSupplier = transactions?.filter(t => t.source === 'supplier').reduce((s, t) => s + t.amount, 0) ?? 0;
-  const grandTotal    = totalLabour + totalFuel + totalSupplier;
+  const totalLivestock = transactions?.filter(t => t.source === 'livestock').reduce((s, t) => s + t.amount, 0) ?? 0;
+  const grandTotal    = totalLabour + totalFuel + totalSupplier + totalLivestock;
   const txCount       = transactions?.length ?? 0;
   const avgTx         = txCount > 0 ? grandTotal / txCount : 0;
   const totalHa       = paddockSummaries?.reduce((s, p) => s + (p.paddock.land_area ?? 0), 0) ?? 0;
@@ -91,13 +95,14 @@ export default function FinancePage() {
   // --- Monthly trend data (computed from transactions) ---
   const monthlyData = useMemo(() => {
     if (!transactions) return [];
-    const map: Record<string, { month: string; Labour: number; Fuel: number; Supplier: number }> = {};
+    const map: Record<string, { month: string; Labour: number; Fuel: number; Supplier: number; Livestock: number }> = {};
     transactions.forEach(tx => {
       const key = format(startOfMonth(parseISO(tx.created_at)), 'yyyy-MM');
-      if (!map[key]) map[key] = { month: format(startOfMonth(parseISO(tx.created_at)), 'MMM yy'), Labour: 0, Fuel: 0, Supplier: 0 };
+      if (!map[key]) map[key] = { month: format(startOfMonth(parseISO(tx.created_at)), 'MMM yy'), Labour: 0, Fuel: 0, Supplier: 0, Livestock: 0 };
       if (tx.source === 'labour')   map[key].Labour   += tx.amount;
       if (tx.source === 'fuel')     map[key].Fuel     += tx.amount;
       if (tx.source === 'supplier') map[key].Supplier += tx.amount;
+      if (tx.source === 'livestock') map[key].Livestock += tx.amount;
     });
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -110,6 +115,7 @@ export default function FinancePage() {
     { name: 'Labour', value: totalLabour, color: '#3b82f6' },
     { name: 'Fuel', value: totalFuel, color: '#f97316' },
     { name: 'Supplier', value: totalSupplier, color: '#a855f7' },
+    { name: 'Livestock', value: totalLivestock, color: '#f59e0b' },
   ].filter(d => d.value > 0);
 
   // --- Paddock chart data (only paddocks with actual spend) ---
@@ -122,6 +128,7 @@ export default function FinancePage() {
       Labour: p.total_labour_cost,
       Fuel: p.total_fuel_cost,
       Supplier: p.total_supplier_cost,
+      Livestock: (p as any).total_livestock_cost || 0,
     })) ?? [];
 
   // --- Unique paddocks for filter ---
@@ -210,6 +217,16 @@ export default function FinancePage() {
               <p className="text-xs text-purple-600">{grandTotal > 0 ? Math.round(totalSupplier / grandTotal * 100) : 0}% of total</p>
             </div>
           </div>
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Livestock</p>
+              <p className="text-base font-bold text-gray-900">{formatCurrency(totalLivestock)}</p>
+              <p className="text-xs text-amber-600">{grandTotal > 0 ? Math.round(totalLivestock / grandTotal * 100) : 0}% of total</p>
+            </div>
+          </div>
         </div>
 
         {/* Charts row */}
@@ -227,7 +244,8 @@ export default function FinancePage() {
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="Labour" stackId="a" fill="#3b82f6" />
                   <Bar dataKey="Fuel" stackId="a" fill="#f97316" />
-                  <Bar dataKey="Supplier" stackId="a" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Supplier" stackId="a" fill="#a855f7" />
+                  <Bar dataKey="Livestock" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -287,6 +305,7 @@ export default function FinancePage() {
                 <Line type="monotone" dataKey="Labour" stroke="#3b82f6" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Fuel" stroke="#f97316" strokeWidth={2} dot={false} />
                 <Line type="monotone" dataKey="Supplier" stroke="#a855f7" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Livestock" stroke="#f59e0b" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -302,7 +321,7 @@ export default function FinancePage() {
             <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-gray-50">
                 <tr>
-                  {['Paddock', 'Crop', 'Labour', 'Fuel', 'Supplies', 'Total', '$/ha'].map(h => (
+                  {['Paddock', 'Crop', 'Labour', 'Fuel', 'Supplies', 'Livestock', 'Total', '$/ha'].map(h => (
                     <th key={h} className="text-right first:text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -319,6 +338,7 @@ export default function FinancePage() {
                       <td className="px-4 py-2.5 text-right text-gray-600">{formatCurrency(p.total_labour_cost)}</td>
                       <td className="px-4 py-2.5 text-right text-gray-600">{formatCurrency(p.total_fuel_cost)}</td>
                       <td className="px-4 py-2.5 text-right text-gray-600">{formatCurrency(p.total_supplier_cost)}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">{formatCurrency((p as any).total_livestock_cost || 0)}</td>
                       <td className="px-4 py-2.5 text-right font-bold text-gray-900">{formatCurrency(p.total_cost)}</td>
                       <td className="px-4 py-2.5 text-right text-gray-400 text-xs">{cph ? formatCurrency(cph) : '—'}</td>
                     </tr>
@@ -343,7 +363,7 @@ export default function FinancePage() {
               <Filter className="w-4 h-4 text-gray-400" />
               {/* Source filter */}
               <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-                {(['all', 'labour', 'fuel', 'supplier'] as SourceFilter[]).map(s => (
+                {(['all', 'labour', 'fuel', 'supplier', 'livestock'] as SourceFilter[]).map(s => (
                   <button
                     key={s}
                     onClick={() => setSourceFilter(s)}
@@ -383,6 +403,8 @@ export default function FinancePage() {
                     ? (tx.product_name ?? '—')
                     : tx.source === 'labour'
                     ? (tx.staff_name ?? '—')
+                    : tx.source === 'livestock'
+                    ? (tx.mob_name ?? '—')
                     : tx.fuel_litres ? `${tx.fuel_litres}L` : '—';
                   return (
                     <tr key={tx.id} className="hover:bg-gray-50/50">

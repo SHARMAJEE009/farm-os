@@ -45,7 +45,7 @@ const navSections = [
       { href: '/forecasting',  label: 'Forecasting',   icon: TrendingUp },
       { href: '/benchmarking', label: 'Benchmarking',  icon: BarChart3 },
       { href: '/news',         label: 'News',          icon: Newspaper },
-      { href: '/chatbot',      label: 'AI Assistant',  icon: MessageSquare },
+      { href: '/intelligence/ai-assistant', label: 'AI Assistant',  icon: MessageSquare },
     ],
   },
 ];

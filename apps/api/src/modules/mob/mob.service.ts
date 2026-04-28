@@ -39,19 +39,50 @@ export class MobService {
   }
 
   async create(dto: CreateMobDto) {
-    const { rows } = await this.db.query(
-      `INSERT INTO mob 
-        (name, species_id, breed_id, animal_class_id, head_count, dob_range_start, dob_range_end, source_farm, purchase_date, purchase_price_per_head, farm_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *`,
-      [
-        dto.name, dto.species_id, dto.breed_id ?? null, dto.animal_class_id ?? null, 
-        dto.head_count, dto.dob_range_start ?? null, dto.dob_range_end ?? null, 
-        dto.source_farm ?? null, dto.purchase_date ?? null, dto.purchase_price_per_head ?? null, 
-        dto.farm_id, dto.created_by ?? null
-      ]
-    );
-    return rows[0];
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+      
+      const { rows } = await client.query(
+        `INSERT INTO mob 
+          (name, species_id, breed_id, animal_class_id, head_count, dob_range_start, dob_range_end, source_farm, purchase_date, purchase_price_per_head, farm_id, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING *`,
+        [
+          dto.name, dto.species_id, dto.breed_id ?? null, dto.animal_class_id ?? null, 
+          dto.head_count, dto.dob_range_start ?? null, dto.dob_range_end ?? null, 
+          dto.source_farm ?? null, dto.purchase_date ?? null, dto.purchase_price_per_head ?? null, 
+          dto.farm_id, dto.created_by ?? null
+        ]
+      );
+      const mob = rows[0];
+
+      if (dto.purchase_price_per_head && dto.purchase_price_per_head > 0) {
+        const totalCost = dto.purchase_price_per_head * dto.head_count;
+        
+        // 1. Create financial transaction (unassigned to paddock for now)
+        const { rows: txRows } = await client.query(
+          `INSERT INTO financial_transactions (source, reference_id, amount)
+           VALUES ('livestock', $1, $2) RETURNING id`,
+          [mob.id, totalCost]
+        );
+        
+        // 2. Create livestock financial entry
+        await client.query(
+          `INSERT INTO livestock_financial_entry (mob_id, entry_type, amount, date, financial_transaction_id)
+           VALUES ($1, 'purchase', $2, $3, $4)`,
+          [mob.id, totalCost, dto.purchase_date || new Date().toISOString().split('T')[0], txRows[0].id]
+        );
+      }
+
+      await client.query('COMMIT');
+      return mob;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
   }
 
   async updateStatus(id: string, dto: UpdateMobStatusDto) {

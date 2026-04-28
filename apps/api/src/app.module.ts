@@ -19,6 +19,7 @@ import { MobModule } from './modules/mob/mob.module';
 import { MobAssignmentModule } from './modules/mob-assignment/mob-assignment.module';
 import { HealthEventModule } from './modules/health-event/health-event.module';
 import { WeighEventModule } from './modules/weigh-event/weigh-event.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { WeighEventModule } from './modules/weigh-event/weigh-event.module';
     MobAssignmentModule,
     HealthEventModule,
     WeighEventModule,
+    AiModule,
   ],
 })
 export class AppModule {}

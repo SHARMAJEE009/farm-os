@@ -10,4 +10,5 @@ export class ExitPaddockDto {
   @IsDateString() exit_date: string;
   @IsNumber() exit_head_count: number;
   @IsEnum(['sold', 'moved', 'deceased', 'other']) exit_reason: string;
+  @IsOptional() @IsNumber() sale_price_per_head?: number;
 }

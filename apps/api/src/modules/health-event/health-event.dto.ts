@@ -11,4 +11,5 @@ export class CreateHealthEventDto {
   @IsNumber() head_count_affected: number;
   @IsOptional() @IsString() cause?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsNumber() cost_amount?: number;
 }

@@ -27,9 +27,10 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 export const ROLE_NAV: Record<UserRole, string[]> = {
-  owner:      ['/dashboard', '/farms', '/staff', '/team', '/agronomist', '/supplier', '/finance', '/forecasting', '/benchmarking', '/news', '/chatbot'],
-  manager:    ['/dashboard', '/farms', '/staff', '/agronomist', '/supplier', '/finance', '/news', '/chatbot'],
-  agronomist: ['/dashboard', '/farms', '/agronomist', '/news'],
-  staff:      ['/dashboard', '/farms', '/staff', '/news'],
+  owner:      ['/dashboard', '/farms', '/staff', '/livestock', '/team', '/agronomist', '/supplier', '/finance', '/forecasting', '/benchmarking', '/news', '/chatbot'],
+  manager:    ['/dashboard', '/farms', '/staff', '/livestock', '/agronomist', '/supplier', '/finance', '/news', '/chatbot'],
+  agronomist: ['/dashboard', '/farms', '/livestock', '/agronomist', '/news'],
+  staff:      ['/dashboard', '/farms', '/staff', '/livestock', '/news'],
   supplier:   ['/dashboard', '/supplier', '/news'],
 };
+

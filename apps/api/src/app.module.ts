@@ -14,6 +14,11 @@ import { FinancialTransactionsModule } from './modules/financial-transactions/fi
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NewsModule } from './modules/news/news.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { LivestockMasterModule } from './modules/livestock-master/livestock-master.module';
+import { MobModule } from './modules/mob/mob.module';
+import { MobAssignmentModule } from './modules/mob-assignment/mob-assignment.module';
+import { HealthEventModule } from './modules/health-event/health-event.module';
+import { WeighEventModule } from './modules/weigh-event/weigh-event.module';
 
 @Module({
   imports: [
@@ -32,6 +37,11 @@ import { ChatbotModule } from './modules/chatbot/chatbot.module';
     DashboardModule,
     NewsModule,
     ChatbotModule,
+    LivestockMasterModule,
+    MobModule,
+    MobAssignmentModule,
+    HealthEventModule,
+    WeighEventModule,
   ],
 })
 export class AppModule {}

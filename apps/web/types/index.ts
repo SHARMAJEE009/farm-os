@@ -234,10 +234,97 @@ export interface NewsResponse {
 
 
 
-// Chatbot types
-export interface ChatMessage {
+// Livestock types
+export interface Species {
   id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
+  name: string;
+  weight_unit: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface Breed {
+  id: string;
+  species_id: string;
+  name: string;
+  typical_mature_weight_kg: number | null;
+  purpose: 'meat' | 'dairy' | 'wool' | 'breeding' | 'dual';
+  created_at: string;
+}
+
+export interface AnimalClass {
+  id: string;
+  species_id: string;
+  name: string;
+  created_at: string;
+}
+
+export type MobStatus = 'active' | 'sold' | 'deceased' | 'transferred';
+
+export interface Mob {
+  id: string;
+  name: string;
+  species_id: string;
+  breed_id: string | null;
+  animal_class_id: string | null;
+  head_count: number;
+  dob_range_start: string | null;
+  dob_range_end: string | null;
+  source_farm: string | null;
+  purchase_date: string | null;
+  purchase_price_per_head: number | null;
+  status: MobStatus;
+  farm_id: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Enriched
+  species?: Species;
+  breed?: Breed;
+  animal_class?: AnimalClass;
+  current_paddock_name?: string;
+}
+
+export interface MobPaddockAssignment {
+  id: string;
+  mob_id: string;
+  paddock_id: string;
+  entry_date: string;
+  entry_head_count: number;
+  exit_date: string | null;
+  exit_head_count: number | null;
+  exit_reason: 'sold' | 'moved' | 'deceased' | 'other' | null;
+  stocking_rate_per_ha: number | null;
+  created_at: string;
+  paddock?: Paddock;
+  mob?: Mob;
+}
+
+export interface HealthEvent {
+  id: string;
+  mob_id: string;
+  event_type: 'treatment' | 'vaccination' | 'mortality' | 'condition_score';
+  date: string;
+  product_used: string | null;
+  dose: string | null;
+  withholding_period_days: number | null;
+  whp_expiry_date: string | null;
+  administered_by: string | null;
+  head_count_affected: number;
+  cause: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface WeighEvent {
+  id: string;
+  mob_id: string;
+  date: string;
+  head_count_weighed: number;
+  average_weight_kg: number;
+  total_weight_kg: number;
+  adg_since_last_kg: number | null;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
 }

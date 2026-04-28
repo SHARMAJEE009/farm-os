@@ -5,14 +5,14 @@ import { useState, useEffect } from 'react';
 import {
   DollarSign, AlertCircle, ShoppingCart, Leaf,
   Users, Fuel, Package, CheckCircle2, ArrowRight, Clock,
-  Sprout, Tractor, TrendingUp,
+  Sprout, Tractor, TrendingUp, Beef,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import type { DashboardStats, FinancialTransaction, PaddockSummary } from '@/types';
+import type { DashboardStats, FinancialTransaction, PaddockSummary, Mob, HealthEvent } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { getRole, UserRole } from '@/lib/role';
 import { useFarm } from '@/lib/farm-context';
@@ -164,8 +164,8 @@ function AdminDashboard({ stats, statsLoading }: any) {
       {statsLoading ? <Spinner /> : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <StatCard title="Cost This Month"       value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies" icon={DollarSign}   iconColor="text-orange-500" />
-          <StatCard title="Open Recommendations" value={stats?.pending_recommendations ?? 0}             subtitle="Awaiting approval"          icon={Leaf}         iconColor="text-emerald-600" />
-          <StatCard title="Pending Orders"        value={stats?.pending_orders ?? 0}                      subtitle="Supplier orders"            icon={ShoppingCart} iconColor="text-blue-500" />
+          <StatCard title="Total Head"            value={stats?.total_head ?? 0}                         subtitle="Live on farm"               icon={Beef}         iconColor="text-emerald-600" />
+          <StatCard title="Health Alerts"         value={stats?.active_health_alerts ?? 0}               subtitle="Withholding periods active" icon={AlertCircle}  iconColor="text-red-500" />
         </div>
       )}
       {stats && <WorkflowTracker stats={stats} />}
@@ -180,8 +180,8 @@ function ManagerDashboard({ stats, statsLoading }: any) {
       {statsLoading ? <Spinner /> : (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <StatCard title="Cost This Month"    value={formatCurrency(stats?.total_cost_this_month ?? 0)} subtitle="Labour + Fuel + Supplies"    icon={DollarSign}   iconColor="text-orange-500" />
-          <StatCard title="Pending Approvals" value={stats?.pending_recommendations ?? 0}             subtitle="Recommendations to review"    icon={AlertCircle}  iconColor="text-yellow-500" />
-          <StatCard title="Pending Orders"     value={stats?.pending_orders ?? 0}                      subtitle="Supplier orders"              icon={ShoppingCart} iconColor="text-blue-500" />
+          <StatCard title="Total Head"         value={stats?.total_head ?? 0}                         subtitle="Live on farm"                icon={Beef}         iconColor="text-emerald-600" />
+          <StatCard title="Health Alerts"      value={stats?.active_health_alerts ?? 0}               subtitle="Withholding periods active" icon={AlertCircle}  iconColor="text-red-500" />
         </div>
       )}
       {stats && <WorkflowTracker stats={stats} />}
@@ -342,9 +342,25 @@ export default function DashboardPage() {
   const { activeFarmId } = useFarm();
   const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
 
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats & { total_head?: number, active_health_alerts?: number }>({
     queryKey: ['dashboard-stats', activeFarmId],
-    queryFn: () => api.get('/dashboard/stats', { params: farmParams }).then(r => r.data),
+    queryFn: async () => {
+      const dashboardRes = await api.get('/dashboard/stats', { params: farmParams });
+      // Fetch livestock data in parallel
+      const [mobsRes, alertsRes] = await Promise.all([
+        api.get('/livestock/mobs', { params: { ...farmParams, status: 'active' } }),
+        api.get('/livestock/health-alerts', { params: farmParams }).catch(() => ({ data: [] }))
+      ]);
+      
+      const totalHead = mobsRes.data.reduce((acc: number, m: Mob) => acc + m.head_count, 0);
+      const activeAlerts = alertsRes.data.length; // Simplified
+
+      return { 
+        ...dashboardRes.data, 
+        total_head: totalHead, 
+        active_health_alerts: activeAlerts 
+      };
+    },
   });
 
   return (

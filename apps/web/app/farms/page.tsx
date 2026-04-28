@@ -7,6 +7,7 @@ import {
   Building2, Plus, Pencil, Trash2, MapPin, Layers,
   AlertCircle, Upload, FileText, X, ArrowRight,
   Cloud, Wind, Droplets, Thermometer, ChevronDown, FlaskConical, Eye,
+  Beef,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -16,8 +17,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useFarm } from '@/lib/farm-context';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
+import Link from 'next/link';
 import { formatCurrency } from '@/lib/utils';
-import type { Farm, FarmStats, Paddock } from '@/types';
+import type { Farm, FarmStats, Paddock, Mob } from '@/types';
 import { parseFarmKml, type FarmKmlData, type KmlPlacemark } from '@/components/ui/GoogleMapPicker';
 
 // ── Dynamic imports (Google Maps needs client-only) ───────────────────────────
@@ -912,6 +914,12 @@ function PaddockDetailModal({
   onEdit: () => void;
 }) {
   const crop = CROP_MAP[paddock.crop_type ?? ''];
+  
+  const { data: activeMob, isLoading: mobLoading } = useQuery<Mob>({
+    queryKey: ['paddock-active-mob', paddock.id],
+    queryFn: () => api.get(`/paddocks/${paddock.id}/active-mob`).then(r => r.data),
+    enabled: !!paddock.id,
+  });
 
   return (
     <Modal open onClose={onClose} title={paddock.name} className="max-w-2xl">
@@ -938,6 +946,39 @@ function PaddockDetailModal({
             <span className="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-100 text-gray-500">
               {paddock.latitude.toFixed(4)}°, {paddock.longitude!.toFixed(4)}°
             </span>
+          )}
+        </div>
+
+        {/* Active Mob Section */}
+        <div className="bg-emerald-50/50 rounded-2xl border border-emerald-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+              <Beef className="w-4 h-4" /> Active Mob
+            </h4>
+          </div>
+          
+          {mobLoading ? (
+            <div className="flex items-center gap-2 text-emerald-600 text-xs animate-pulse">
+              <div className="w-3 h-3 border-2 border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
+              Checking for livestock...
+            </div>
+          ) : activeMob ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold text-gray-900">{activeMob.name}</p>
+                <p className="text-xs text-gray-500">
+                  {activeMob.head_count} head · {activeMob.species?.name || 'Livestock'}
+                </p>
+              </div>
+              <Link 
+                href={`/livestock/${activeMob.id}`} 
+                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:underline"
+              >
+                View Mob <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 italic">No livestock currently in this paddock.</p>
           )}
         </div>
 

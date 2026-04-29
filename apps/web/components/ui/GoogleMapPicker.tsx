@@ -318,11 +318,24 @@ export function FarmPaddockMap({
 
       if (item.centroid) {
         if (item.path.length === 0) { bounds.extend(item.centroid); hasData = true; }
+        
+        // Create a custom SVG icon for the label to prevent overlap confusion and improve readability
+        const labelText = item.name;
+        const textWidth = Math.max(40, labelText.length * 7 + 16);
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="${textWidth}" height="24" viewBox="0 0 ${textWidth} 24">
+            <rect x="2" y="2" width="${textWidth - 4}" height="20" rx="10" fill="${color}" stroke="white" stroke-width="1.5" />
+            <text x="50%" y="15" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${labelText}</text>
+          </svg>
+        `;
+
         const marker = new g.Marker({
           position: item.centroid,
           map,
-          label: { text: item.name, color: '#ffffff', fontSize: '11px', fontWeight: 'bold' },
-          icon: { path: g.SymbolPath.CIRCLE, scale: 0, fillOpacity: 0, strokeOpacity: 0 },
+          icon: {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+            anchor: new g.Point(textWidth / 2, 12),
+          },
           zIndex: 3,
         });
         if (onPaddockClick && item.id) {

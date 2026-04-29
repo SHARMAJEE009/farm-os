@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Beef, ArrowLeft, MapPin, Activity, Scale, Plus, 
-  Calendar, AlertCircle, History, TrendingUp, TrendingDown, Layers
+  Calendar, AlertCircle, History, TrendingUp, TrendingDown, Layers,
+  DollarSign
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';

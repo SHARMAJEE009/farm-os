@@ -18,14 +18,20 @@ import { useFarm } from '@/lib/farm-context';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
 import Link from 'next/link';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, cn } from '@/lib/utils';
 import type { Farm, FarmStats, Paddock, Mob } from '@/types';
 import { parseFarmKml, type FarmKmlData, type KmlPlacemark } from '@/components/ui/GoogleMapPicker';
+import type { DrawnPolygon } from '@/components/ui/GoogleMapDrawer';
 
 // ── Dynamic imports (Google Maps needs client-only) ───────────────────────────
 const FarmPaddockMap = dynamic(
   () => import('@/components/ui/GoogleMapPicker').then(m => m.FarmPaddockMap),
   { ssr: false, loading: () => <div className="h-[480px] bg-gray-100 rounded-xl animate-pulse flex items-center justify-center"><span className="text-sm text-gray-400">Loading map…</span></div> }
+);
+
+const GoogleMapDrawer = dynamic(
+  () => import('@/components/ui/GoogleMapDrawer').then(m => m.GoogleMapDrawer),
+  { ssr: false, loading: () => <div className="h-[300px] bg-gray-100 rounded-xl animate-pulse flex items-center justify-center"><span className="text-sm text-gray-400">Loading map…</span></div> }
 );
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -138,6 +144,7 @@ export default function FarmsPage() {
   const [kmlFileName, setKmlFileName]       = useState('');
   const [kmlError, setKmlError]             = useState('');
   const [selectedPlacemarks, setSelected]   = useState<Set<number>>(new Set());
+  const [drawnPolygons, setDrawnPolygons]   = useState<DrawnPolygon[]>([]);
   const [creating, setCreating]             = useState(false);
   const [createError, setCreateError]       = useState('');
   const kmlRef = useRef<HTMLInputElement>(null);
@@ -225,6 +232,7 @@ export default function FarmsPage() {
   const closeCreateModal = () => {
     setCreateOpen(false); setKmlData(null); setKmlFileName(''); setKmlError('');
     setSelected(new Set()); setCreating(false); setCreateError('');
+    setDrawnPolygons([]);
     createFarmForm.reset({ country: 'Australia' });
     if (kmlRef.current) kmlRef.current.value = '';
   };
@@ -242,13 +250,13 @@ export default function FarmsPage() {
     setCreating(true); setCreateError('');
     try {
       const res = await api.post('/farms', {
-        name: d.name, location: d.location || null, state: d.state || null,
-        postcode: d.postcode || null, country: d.country || 'Australia',
-        description: d.description || null,
+        name: d.name, state: d.state || null,
+        country: d.country || 'Australia',
         total_area_hectares: d.total_area_hectares ? parseFloat(d.total_area_hectares) : null,
       });
       const newFarm = res.data;
       setActiveFarmId(newFarm.id);
+      
       if (kmlData) {
         const toImport = kmlData.placemarks.filter((_, i) => selectedPlacemarks.has(i));
         for (const p of toImport) {
@@ -256,6 +264,19 @@ export default function FarmsPage() {
             farm_id: newFarm.id, name: p.name ?? 'Unnamed Paddock',
             land_area: p.area_ha, latitude: p.centroid.lat, longitude: p.centroid.lng,
             boundary_geojson: p.coords.length > 0 ? { type: 'Polygon', coordinates: [p.coords] } : undefined,
+          });
+        }
+      } else if (drawnPolygons.length > 0) {
+        const paddocks = drawnPolygons.filter(p => p.type === 'paddock');
+        for (const p of paddocks) {
+          const lats = p.coords.map(c => c[1]);
+          const lngs = p.coords.map(c => c[0]);
+          const centroidLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+          const centroidLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+          await api.post('/paddocks', {
+            farm_id: newFarm.id, name: p.name,
+            land_area: p.area_ha, latitude: centroidLat, longitude: centroidLng,
+            boundary_geojson: { type: 'Polygon', coordinates: [p.coords] },
           });
         }
       }
@@ -271,9 +292,8 @@ export default function FarmsPage() {
   // ── Update farm ───────────────────────────────────────────────────────────
   const updateFarmMutation = useMutation({
     mutationFn: (d: FarmForm) => api.patch(`/farms/${farm!.id}`, {
-      name: d.name, location: d.location || null, state: d.state || null,
-      postcode: d.postcode || null, country: d.country || 'Australia',
-      description: d.description || null,
+      name: d.name, state: d.state || null,
+      country: d.country || 'Australia',
       total_area_hectares: d.total_area_hectares ? parseFloat(d.total_area_hectares) : null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['farms'] }); setEditFarmOpen(false); },
@@ -361,28 +381,30 @@ export default function FarmsPage() {
     return <AppLayout><div className="flex justify-center py-24"><Spinner /></div></AppLayout>;
   }
 
-  // ── No farm → Empty state ─────────────────────────────────────────────────
+  // ── No farm → Inline Setup ────────────────────────────────────────────────
   if (!farm) {
     return (
       <AppLayout>
-        <div className="p-4 sm:p-6">
-          <PageHeader title="Farm" subtitle="Set up your farm property" />
-          <EmptyState
-            icon={Building2}
-            title="No farm set up yet"
-            description="Add your farm to get started. Upload a KML file to automatically import farm and paddock details."
-            action={<button onClick={() => setCreateOpen(true)} className="btn-primary">Set up your farm</button>}
-          />
+        <div className="p-4 sm:p-6 w-full max-w-[1600px] mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 leading-tight">Set up your farm property</h1>
+            <p className="text-gray-500 text-lg mt-2">Add your farm details and boundaries to get started.</p>
+          </div>
+          
+          <div className="bg-white rounded-3xl shadow-xl shadow-farm-900/5 border border-gray-100 overflow-hidden">
+            <div className="p-8">
+              <CreateFarmFormContent
+                isWide={true}
+                createFarmForm={createFarmForm} onCreateFarm={onCreateFarm}
+                kmlData={kmlData} kmlFileName={kmlFileName} kmlError={kmlError} kmlRef={kmlRef}
+                handleKml={handleKml} clearKml={clearKml}
+                selectedPlacemarks={selectedPlacemarks} togglePlacemark={togglePlacemark} toggleAll={toggleAll}
+                drawnPolygons={drawnPolygons} setDrawnPolygons={setDrawnPolygons}
+                creating={creating} createError={createError} btnLabel={kmlData ? 'Save & Import' : 'Create Farm'}
+              />
+            </div>
+          </div>
         </div>
-
-        {/* Create modal (same as below) */}
-        {createOpen && <CreateFarmModal
-          createFarmForm={createFarmForm} onCreateFarm={onCreateFarm} closeModal={closeCreateModal}
-          kmlData={kmlData} kmlFileName={kmlFileName} kmlError={kmlError} kmlRef={kmlRef}
-          handleKml={handleKml} clearKml={clearKml}
-          selectedPlacemarks={selectedPlacemarks} togglePlacemark={togglePlacemark} toggleAll={toggleAll}
-          creating={creating} createError={createError} btnLabel={btnLabel}
-        />}
       </AppLayout>
     );
   }
@@ -591,7 +613,6 @@ export default function FarmsPage() {
             <input className="input" placeholder="e.g. Riverdale Station" {...editFarmForm.register('name', { required: true })} />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Location / Town</label><input className="input" placeholder="e.g. Dubbo" {...editFarmForm.register('location')} /></div>
             <div>
               <label className="label">State</label>
               <select className="input" {...editFarmForm.register('state')}>
@@ -599,14 +620,7 @@ export default function FarmsPage() {
                 {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Postcode</label><input className="input" placeholder="2830" {...editFarmForm.register('postcode')} /></div>
             <div><label className="label">Total Area (ha)</label><input className="input" type="number" step="any" {...editFarmForm.register('total_area_hectares')} /></div>
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea className="input resize-none" rows={3} {...editFarmForm.register('description')} />
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={() => setEditFarmOpen(false)} className="btn-secondary flex-1">Cancel</button>
@@ -702,6 +716,7 @@ export default function FarmsPage() {
         kmlData={kmlData} kmlFileName={kmlFileName} kmlError={kmlError} kmlRef={kmlRef}
         handleKml={handleKml} clearKml={clearKml}
         selectedPlacemarks={selectedPlacemarks} togglePlacemark={togglePlacemark} toggleAll={toggleAll}
+        drawnPolygons={drawnPolygons} setDrawnPolygons={setDrawnPolygons}
         creating={creating} createError={createError} btnLabel={btnLabel}
       />}
     </AppLayout>
@@ -751,139 +766,210 @@ function PaddockFormFields({ form }: { form: ReturnType<typeof useForm<PaddockFo
   );
 }
 
-// ── Create farm modal (extracted to keep main component readable) ──────────────
-function CreateFarmModal({
-  createFarmForm, onCreateFarm, closeModal,
-  kmlData, kmlFileName, kmlError, kmlRef,
-  handleKml, clearKml,
-  selectedPlacemarks, togglePlacemark, toggleAll,
-  creating, createError, btnLabel,
-}: any) {
+// ── Create farm modal & content ───────────────────────────────────────────────
+function CreateFarmFormContent(props: any) {
+  const {
+    createFarmForm, onCreateFarm,
+    kmlData, kmlFileName, kmlError, kmlRef,
+    handleKml, clearKml,
+    selectedPlacemarks, togglePlacemark, toggleAll,
+    drawnPolygons = [], setDrawnPolygons,
+    creating, createError, btnLabel,
+    isWide = false,
+  } = props;
+
   return (
-    <Modal open onClose={closeModal} title="Add Farm" className="max-w-lg">
-      <div className="space-y-4">
+    <div className={cn("space-y-6", isWide && "lg:grid lg:grid-cols-12 lg:gap-10 lg:space-y-0")}>
+      <div className={cn("space-y-6", isWide && "lg:col-span-7")}>
         {createError && (
-          <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" /> {createError}
+          <div className="flex items-center gap-3 text-red-600 bg-red-50 rounded-2xl px-4 py-3 text-sm border border-red-100">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" /> {createError}
           </div>
         )}
 
         {/* KML Upload */}
-        <div>
-          <label className="label">
+        <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100">
+          <label className="label text-gray-900 mb-3 flex items-center gap-2">
+            <Upload className="w-4 h-4 text-farm-600" />
             Upload KML File
-            <span className="text-gray-400 font-normal ml-1">(auto-fills farm & paddock details)</span>
+            <span className="text-gray-400 font-normal text-xs ml-auto">(auto-fills everything)</span>
           </label>
           {!kmlData ? (
             <div
               onClick={() => kmlRef.current?.click()}
-              className="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center gap-2 cursor-pointer hover:border-farm-400 hover:bg-farm-50 transition-colors"
+              className="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer hover:border-farm-400 hover:bg-farm-50/50 transition-all group"
             >
-              <div className="w-10 h-10 rounded-xl bg-farm-50 flex items-center justify-center">
-                <Upload className="w-5 h-5 text-farm-600" />
+              <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Upload className="w-6 h-6 text-farm-600" />
               </div>
-              <p className="text-sm font-medium text-gray-700">Click to upload .kml file</p>
-              <p className="text-xs text-gray-400 text-center">Farm name, area, and all paddock boundaries extracted automatically</p>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-gray-700">Click to upload .kml file</p>
+                <p className="text-xs text-gray-400 mt-1 max-w-[240px]">Farm name, area, and all paddock boundaries extracted automatically</p>
+              </div>
             </div>
           ) : (
-            <div className="bg-farm-50 border border-farm-200 rounded-xl px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FileText className="w-5 h-5 text-farm-600 flex-shrink-0" />
+            <div className="bg-white border border-farm-200 rounded-xl px-4 py-4 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-farm-50 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-farm-600 flex-shrink-0" />
+                </div>
                 <div>
-                  <p className="text-sm font-semibold text-farm-800">{kmlFileName}</p>
-                  <p className="text-xs text-farm-600">
+                  <p className="text-sm font-bold text-gray-900">{kmlFileName}</p>
+                  <p className="text-xs text-farm-600 font-medium">
                     {kmlData.placemarks.length} paddock{kmlData.placemarks.length !== 1 ? 's' : ''} detected
                     {kmlData.totalAreaHa > 0 && ` · ${kmlData.totalAreaHa.toFixed(1)} ha total`}
                   </p>
                 </div>
               </div>
-              <button onClick={clearKml} className="text-gray-400 hover:text-red-500 transition-colors">
-                <X className="w-4 h-4" />
+              <button onClick={clearKml} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
           )}
           <input ref={kmlRef} type="file" accept=".kml" className="hidden" onChange={handleKml} />
-          {kmlError && <p className="text-xs text-red-500 mt-1">{kmlError}</p>}
+          {kmlError && <p className="text-xs text-red-500 mt-2 font-medium">{kmlError}</p>}
         </div>
 
         {/* KML preview map */}
         {kmlData && kmlData.placemarks.length > 0 && (
-          <FarmPaddockMap placemarks={kmlData.placemarks} height={260} />
+          <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+            <FarmPaddockMap placemarks={kmlData.placemarks} height={isWide ? 480 : 260} />
+          </div>
         )}
 
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-gray-100" />
-          <span className="text-xs text-gray-400 font-medium">Farm Details</span>
-          <div className="flex-1 h-px bg-gray-100" />
+        {/* Manual Drawing Map */}
+        {!kmlData && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="label text-gray-900 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-farm-600" />
+                Or draw farm & paddocks on map
+              </label>
+              {drawnPolygons.length > 0 && (
+                <span className="text-[10px] bg-farm-100 text-farm-700 px-2 py-1 rounded-full font-bold uppercase tracking-wider">
+                  {drawnPolygons.length} shape{drawnPolygons.length !== 1 ? 's' : ''} drawn
+                </span>
+              )}
+            </div>
+            <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
+              <GoogleMapDrawer 
+                onPolygonsChange={(polys: DrawnPolygon[]) => {
+                  setDrawnPolygons(polys);
+                  const farmPoly = polys.find(p => p.type === 'farm');
+                  if (farmPoly) {
+                    createFarmForm.setValue('total_area_hectares', farmPoly.area_ha.toString());
+                  }
+                }} 
+                height={isWide ? 520 : 300} 
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className={cn("space-y-8", isWide && "lg:col-span-5")}>
+        <div className="bg-gray-50/50 rounded-2xl p-6 border border-gray-100 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-px bg-gray-200" />
+            <span className="text-xs text-gray-400 font-bold uppercase tracking-widest whitespace-nowrap">Farm Details</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <form onSubmit={onCreateFarm} className="space-y-5">
+            <div>
+              <label className="label font-semibold text-gray-700">Farm Name *</label>
+              <input 
+                className="input h-12 bg-white" 
+                placeholder="e.g. Riverdale Station" 
+                {...createFarmForm.register('name', { required: true })} 
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label font-semibold text-gray-700">State</label>
+                <select className="input h-12 bg-white appearance-none" {...createFarmForm.register('state')}>
+                  <option value="">Select…</option>
+                  {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label font-semibold text-gray-700">Total Area (ha)</label>
+                <div className="relative">
+                  <input 
+                    className="input h-12 bg-white pr-12" 
+                    type="number" 
+                    step="any" 
+                    placeholder="1200" 
+                    {...createFarmForm.register('total_area_hectares')} 
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">HA</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Paddock checklist */}
+            {kmlData && kmlData.placemarks.length > 0 && (
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-gray-700">Paddocks to import</span>
+                    <span className="text-[10px] bg-farm-600 text-white px-2 py-0.5 rounded-full font-bold">
+                      {selectedPlacemarks.size} / {kmlData.placemarks.length}
+                    </span>
+                  </div>
+                  <button type="button" onClick={toggleAll} className="text-xs text-farm-600 hover:text-farm-700 font-bold hover:underline">
+                    {selectedPlacemarks.size === kmlData.placemarks.length ? 'Deselect all' : 'Select all'}
+                  </button>
+                </div>
+                <div className="space-y-1.5 max-h-[320px] overflow-y-auto rounded-xl border border-gray-100 bg-white p-2 shadow-inner">
+                  {kmlData.placemarks.map((p: KmlPlacemark, i: number) => (
+                    <label key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-farm-50 cursor-pointer transition-colors border border-transparent hover:border-farm-100">
+                      <input type="checkbox" checked={selectedPlacemarks.has(i)} onChange={() => togglePlacemark(i)} className="rounded-md border-gray-300 text-farm-600 focus:ring-farm-500 w-4 h-4" />
+                      <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-gray-800 truncate">{p.name ?? 'Unnamed Paddock'}</span>
+                        {p.area_ha != null && <span className="text-xs font-bold text-gray-400 flex-shrink-0">{p.area_ha.toFixed(1)} ha</span>}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </form>
         </div>
 
-        <form onSubmit={onCreateFarm} className="space-y-3">
-          <div>
-            <label className="label">Farm Name *</label>
-            <input className="input" placeholder="e.g. Riverdale Station" {...createFarmForm.register('name', { required: true })} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Location / Town</label><input className="input" placeholder="e.g. Dubbo" {...createFarmForm.register('location')} /></div>
-            <div>
-              <label className="label">State</label>
-              <select className="input" {...createFarmForm.register('state')}>
-                <option value="">Select…</option>
-                {AU_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Postcode</label><input className="input" placeholder="2830" {...createFarmForm.register('postcode')} /></div>
-            <div><label className="label">Total Area (ha)</label><input className="input" type="number" step="any" placeholder="1200" {...createFarmForm.register('total_area_hectares')} /></div>
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea className="input resize-none" rows={2} placeholder="Brief description…" {...createFarmForm.register('description')} />
-          </div>
-        </form>
-
-        {/* Paddock checklist */}
-        {kmlData && kmlData.placemarks.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Paddocks to import</span>
-                <span className="text-xs bg-farm-100 text-farm-700 px-2 py-0.5 rounded-full font-medium">
-                  {selectedPlacemarks.size} / {kmlData.placemarks.length}
-                </span>
-              </div>
-              <button type="button" onClick={toggleAll} className="text-xs text-farm-600 hover:underline font-medium">
-                {selectedPlacemarks.size === kmlData.placemarks.length ? 'Deselect all' : 'Select all'}
-              </button>
-            </div>
-            <div className="space-y-1 max-h-40 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50 p-2">
-              {kmlData.placemarks.map((p: KmlPlacemark, i: number) => (
-                <label key={i} className="flex items-center gap-3 px-2.5 py-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
-                  <input type="checkbox" checked={selectedPlacemarks.has(i)} onChange={() => togglePlacemark(i)} className="rounded border-gray-300 text-farm-600" />
-                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-gray-800 truncate">{p.name ?? 'Unnamed Paddock'}</span>
-                    {p.area_ha != null && <span className="text-xs text-gray-400 flex-shrink-0">{p.area_ha.toFixed(1)} ha</span>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={closeModal} className="btn-secondary flex-1">Cancel</button>
+        <div className="flex flex-col gap-3">
           <button
-            type="button" onClick={onCreateFarm} disabled={creating}
-            className="btn-primary flex-1 flex items-center justify-center gap-2"
+            type="button" 
+            onClick={props.onCreateFarm} 
+            disabled={props.creating}
+            className="btn-primary h-14 w-full flex items-center justify-center gap-3 text-base shadow-lg shadow-farm-600/20"
           >
-            {creating ? (
-              <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Creating…</>
+            {props.creating ? (
+              <><div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />Saving Farm…</>
             ) : (
-              <>{btnLabel}<ArrowRight className="w-4 h-4" /></>
+              <><span className="font-bold">{props.btnLabel}</span><ArrowRight className="w-5 h-5" /></>
             )}
           </button>
+          
+          {props.closeModal && (
+            <button 
+              type="button" 
+              onClick={props.closeModal} 
+              className="h-12 w-full text-gray-500 font-semibold text-sm hover:text-gray-900 transition-colors"
+            >
+              Cancel and go back
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CreateFarmModal(props: any) {
+  return (
+    <Modal open onClose={props.closeModal} title="Add Farm" className="max-w-lg">
+      <CreateFarmFormContent {...props} />
     </Modal>
   );
 }

@@ -39,21 +39,21 @@ const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'NT', 'ACT'];
 const AGRO_KEY  = '587b1967699157991ef25e887b576015';
 
 const CROPS = [
-  { label: 'Wheat',     emoji: '🌾', color: 'bg-yellow-100 text-yellow-800' },
-  { label: 'Barley',    emoji: '🌾', color: 'bg-amber-100  text-amber-800'  },
-  { label: 'Canola',    emoji: '🌼', color: 'bg-lime-100   text-lime-800'   },
-  { label: 'Corn',      emoji: '🌽', color: 'bg-yellow-100 text-yellow-800' },
-  { label: 'Soybeans',  emoji: '🫘', color: 'bg-green-100  text-green-800'  },
-  { label: 'Sorghum',   emoji: '🌿', color: 'bg-red-100    text-red-800'    },
-  { label: 'Cotton',    emoji: '🤍', color: 'bg-sky-100    text-sky-800'    },
-  { label: 'Sunflower', emoji: '🌻', color: 'bg-yellow-100 text-yellow-800' },
-  { label: 'Oats',      emoji: '🌾', color: 'bg-orange-100 text-orange-800' },
-  { label: 'Rice',      emoji: '🍚', color: 'bg-emerald-100 text-emerald-800' },
-  { label: 'Chickpeas', emoji: '🫘', color: 'bg-amber-100  text-amber-800'  },
-  { label: 'Lentils',   emoji: '🫘', color: 'bg-orange-100 text-orange-800' },
-  { label: 'Potatoes',  emoji: '🥔', color: 'bg-stone-100  text-stone-800'  },
-  { label: 'Lucerne',   emoji: '🌿', color: 'bg-green-100  text-green-800'  },
-  { label: 'Other',     emoji: '🌱', color: 'bg-gray-100   text-gray-700'   },
+  { label: 'Wheat',     emoji: '🌾', color: 'bg-yellow-100 text-yellow-800', hexColor: '#eab308' },
+  { label: 'Barley',    emoji: '🌾', color: 'bg-amber-100  text-amber-800',  hexColor: '#f59e0b' },
+  { label: 'Canola',    emoji: '🌼', color: 'bg-lime-100   text-lime-800',   hexColor: '#84cc16' },
+  { label: 'Corn',      emoji: '🌽', color: 'bg-yellow-100 text-yellow-800', hexColor: '#eab308' },
+  { label: 'Soybeans',  emoji: '🫘', color: 'bg-green-100  text-green-800',  hexColor: '#22c55e' },
+  { label: 'Sorghum',   emoji: '🌿', color: 'bg-red-100    text-red-800',    hexColor: '#ef4444' },
+  { label: 'Cotton',    emoji: '🤍', color: 'bg-sky-100    text-sky-800',    hexColor: '#0ea5e9' },
+  { label: 'Sunflower', emoji: '🌻', color: 'bg-yellow-100 text-yellow-800', hexColor: '#eab308' },
+  { label: 'Oats',      emoji: '🌾', color: 'bg-orange-100 text-orange-800', hexColor: '#f97316' },
+  { label: 'Rice',      emoji: '🍚', color: 'bg-emerald-100 text-emerald-800', hexColor: '#10b981' },
+  { label: 'Chickpeas', emoji: '🫘', color: 'bg-amber-100  text-amber-800',  hexColor: '#f59e0b' },
+  { label: 'Lentils',   emoji: '🫘', color: 'bg-orange-100 text-orange-800', hexColor: '#f97316' },
+  { label: 'Potatoes',  emoji: '🥔', color: 'bg-stone-100  text-stone-800',  hexColor: '#78716c' },
+  { label: 'Lucerne',   emoji: '🌿', color: 'bg-green-100  text-green-800',  hexColor: '#22c55e' },
+  { label: 'Other',     emoji: '🌱', color: 'bg-gray-100   text-gray-700',   hexColor: '#6b7280' },
 ];
 const CROP_MAP = Object.fromEntries(CROPS.map(c => [c.label, c]));
 
@@ -182,6 +182,12 @@ export default function FarmsPage() {
   const { data: farmStats } = useQuery<FarmStats>({
     queryKey: ['farm-stats', farm?.id],
     queryFn: () => api.get(`/farms/${farm!.id}/stats`).then(r => r.data),
+    enabled: !!farm,
+  });
+
+  const { data: mobLocations } = useQuery<any[]>({
+    queryKey: ['mob-locations', farm?.id],
+    queryFn: () => api.get('/livestock/mob-locations', { params: { farm_id: farm!.id } }).then(r => r.data),
     enabled: !!farm,
   });
 
@@ -527,7 +533,7 @@ export default function FarmsPage() {
           {paddocksLoading ? (
             <div className="h-[480px] bg-gray-100 rounded-xl animate-pulse" />
           ) : paddocks && paddocks.length > 0 ? (
-            <FarmPaddockMap paddocks={paddocks as any} onPaddockClick={openEditPaddockById} height={480} />
+            <FarmPaddockMap paddocks={paddocks.map(p => ({ ...p, color: CROP_MAP[p.crop_type || '']?.hexColor })) as any} mobLocations={mobLocations} onPaddockClick={openEditPaddockById} height={480} />
           ) : (
             <div className="h-40 bg-gray-50 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-sm text-gray-400">
               No paddock boundaries yet — add paddocks below
@@ -591,6 +597,13 @@ export default function FarmsPage() {
                         <p className="text-xs text-farm-600 flex items-center gap-1">
                           <MapPin className="w-3 h-3" /> Boundary mapped
                         </p>
+                      )}
+                      {mobLocations?.find(m => m.paddock_id === p.id) && (
+                        <div className="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-semibold rounded-lg">
+                          <Beef className="w-3 h-3" />
+                          {mobLocations.find(m => m.paddock_id === p.id)!.mob_name} 
+                          ({mobLocations.find(m => m.paddock_id === p.id)!.head_count} hd)
+                        </div>
                       )}
                     </div>
                   </div>

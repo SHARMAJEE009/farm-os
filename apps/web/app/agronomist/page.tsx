@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Leaf, CheckCircle, XCircle, Clock, Trash2, AlertCircle,
   Droplets, Sprout, FlaskConical, Tractor, Sun, Wheat, Microscope,
-  HelpCircle, Search, ChevronDown,
+  HelpCircle, Search, ChevronDown, Map, FileText, Upload, Download, File
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -14,7 +14,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate } from '@/lib/utils';
-import type { Recommendation, Paddock } from '@/types';
+import type { Recommendation, Paddock, AgronomyDocument } from '@/types';
 import AppLayout from '@/components/layout/AppLayout';
 import { useForm } from 'react-hook-form';
 import { getRole, isAdmin } from '@/lib/role';
@@ -59,14 +59,6 @@ const STATUS_CONFIG = {
   approved: { label: 'Approved', icon: CheckCircle,  bg: 'bg-green-50',   text: 'text-green-700',   border: 'border-green-200',  dot: 'bg-green-500'  },
   rejected: { label: 'Rejected', icon: XCircle,      bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',    dot: 'bg-red-500'    },
 } as const;
-
-const FILTER_TABS: { id: StatusFilter; label: string }[] = [
-  { id: 'all',      label: 'All' },
-  { id: 'draft',    label: 'Draft' },
-  { id: 'approved', label: 'Approved' },
-  { id: 'rejected', label: 'Rejected' },
-];
-
 
 // ── Recommendation card ─────────────────────────────────────────────────────
 function RecCard({ rec, onApprove, onReject, onDelete, isUpdating, canApprove }: {
@@ -133,37 +125,138 @@ function RecCard({ rec, onApprove, onReject, onDelete, isUpdating, canApprove }:
   );
 }
 
+// ── Document Section ────────────────────────────────────────────────────────
+function DocumentSection({ paddockId, title, documentType, isAgronomist }: { 
+  paddockId: string, 
+  title: string, 
+  documentType: 'soil_report' | 'planned_financials',
+  isAgronomist: boolean 
+}) {
+  const qc = useQueryClient();
+  const [uploading, setUploading] = useState(false);
+
+  const { data: documents, isLoading } = useQuery<AgronomyDocument[]>({
+    queryKey: ['agronomy-docs', paddockId],
+    queryFn: () => api.get(`/agronomy/documents/${paddockId}`).then(r => r.data),
+  });
+
+  const docs = documents?.filter(d => d.document_type === documentType) || [];
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('paddock_id', paddockId);
+    formData.append('document_type', documentType);
+
+    try {
+      await api.post('/agronomy/documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      qc.invalidateQueries({ queryKey: ['agronomy-docs', paddockId] });
+    } catch (err) {
+      alert('Failed to upload document');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/agronomy/documents/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agronomy-docs', paddockId] }),
+  });
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-farm-600" />
+          {title}
+        </h3>
+        {isAgronomist && (
+          <label className="btn-secondary text-xs px-3 py-1.5 cursor-pointer flex items-center gap-2">
+            <Upload className="w-3.5 h-3.5" /> {uploading ? 'Uploading…' : 'Upload'}
+            <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx" onChange={handleUpload} disabled={uploading} />
+          </label>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-6"><Spinner /></div>
+      ) : docs.length > 0 ? (
+        <div className="space-y-3">
+          {docs.map(doc => (
+            <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-10 h-10 bg-white rounded flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <File className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{doc.file_name}</p>
+                  <p className="text-xs text-gray-500">Uploaded {formatDate(doc.created_at)} by {doc.uploaded_by_name || 'User'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${doc.file_url}`} target="_blank" rel="noreferrer" className="p-2 text-farm-600 hover:bg-farm-50 rounded-lg transition-colors">
+                  <Download className="w-4 h-4" />
+                </a>
+                {isAgronomist && (
+                  <button onClick={() => deleteMutation.mutate(doc.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-6 border-2 border-dashed border-gray-100 rounded-xl">
+          <p className="text-sm text-gray-500">No documents uploaded.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ────────────────────────────────────────────────────────────────────
 export default function AgronomistPage() {
   const qc = useQueryClient();
-  const [modalOpen, setModalOpen]     = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [search, setSearch]           = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPaddockId, setSelectedPaddockId] = useState<string | null>(null);
 
   const role = getRole();
   const canApprove = isAdmin(role);
+  const isAgronomist = role === 'agronomist' || isAdmin(role); // Allow admin to test upload as well
 
   const { activeFarmId } = useFarm();
   const farmParams = activeFarmId ? { farm_id: activeFarmId } : {};
 
-  const { data: recs, isLoading } = useQuery<Recommendation[]>({
+  const { data: recs, isLoading: recsLoading } = useQuery<Recommendation[]>({
     queryKey: ['recommendations', activeFarmId],
     queryFn: () => api.get('/recommendations').then(r => r.data),
   });
 
-  const { data: paddocks } = useQuery<Paddock[]>({
+  const { data: paddocks, isLoading: paddocksLoading } = useQuery<Paddock[]>({
     queryKey: ['paddocks', activeFarmId],
     queryFn: () => api.get('/paddocks', { params: farmParams }).then(r => r.data),
   });
 
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<RecForm>();
+  // Automatically select first paddock
+  if (!selectedPaddockId && paddocks && paddocks.length > 0) {
+    setSelectedPaddockId(paddocks[0].id);
+  }
 
-  const watchedPaddockId = watch('paddock_id');
-  const selectedPaddock  = paddocks?.find(p => p.id === watchedPaddockId) ?? null;
+  const selectedPaddock = paddocks?.find(p => p.id === selectedPaddockId);
+  const paddockRecs = recs?.filter(r => r.paddock_id === selectedPaddockId) || [];
 
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<RecForm>();
 
   const createMutation = useMutation({
-    mutationFn: (d: RecForm) => api.post('/recommendations', d),
+    mutationFn: (d: RecForm) => api.post('/recommendations', { ...d, paddock_id: selectedPaddockId }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recommendations'] });
       setModalOpen(false);
@@ -182,171 +275,129 @@ export default function AgronomistPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recommendations'] }),
   });
 
-  const counts = useMemo(() => ({
-    total:    recs?.length ?? 0,
-    draft:    recs?.filter(r => r.status === 'draft').length    ?? 0,
-    approved: recs?.filter(r => r.status === 'approved').length ?? 0,
-    rejected: recs?.filter(r => r.status === 'rejected').length ?? 0,
-  }), [recs]);
-
-  const filtered = useMemo(() => {
-    let list = recs ?? [];
-    if (statusFilter !== 'all') list = list.filter(r => r.status === statusFilter);
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(r =>
-        r.type.toLowerCase().includes(q) ||
-        (r.paddock?.name ?? '').toLowerCase().includes(q) ||
-        (r.description ?? '').toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [recs, statusFilter, search]);
-
   const handleCloseModal = () => { setModalOpen(false); reset(); };
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6">
-        <PageHeader
-          title="Agronomy"
-          subtitle="Manage paddock recommendations and spray programs"
-          action={
-            <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /><span>New Recommendation</span>
-            </button>
-          }
-        />
+      <div className="h-[calc(100vh-64px)] flex flex-col md:flex-row bg-gray-50">
+        
+        {/* Sidebar: Paddock List */}
+        <div className="w-full md:w-80 border-r border-gray-200 bg-white flex flex-col h-full flex-shrink-0">
+          <div className="p-4 border-b border-gray-100 bg-gray-50">
+            <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <Map className="w-4 h-4 text-farm-600" /> Paddocks
+            </h2>
+          </div>
+          <div className="overflow-y-auto flex-1 p-2 space-y-1">
+            {paddocksLoading ? (
+              <div className="flex justify-center py-10"><Spinner /></div>
+            ) : paddocks?.length ? (
+              paddocks.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => setSelectedPaddockId(p.id)}
+                  className={`w-full text-left px-4 py-3 rounded-xl transition-all border ${
+                    selectedPaddockId === p.id 
+                      ? 'bg-farm-50 border-farm-200 shadow-sm' 
+                      : 'bg-white border-transparent hover:bg-gray-50'
+                  }`}
+                >
+                  <p className={`font-semibold text-sm ${selectedPaddockId === p.id ? 'text-farm-900' : 'text-gray-700'}`}>
+                    {p.name}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                    {p.crop_type ? <><Sprout className="w-3 h-3" /> {p.crop_type}</> : 'No crop active'}
+                  </p>
+                </button>
+              ))
+            ) : (
+              <p className="text-xs text-gray-500 text-center py-10">No paddocks found.</p>
+            )}
+          </div>
+        </div>
 
-        {/* Summary stat chips */}
-        {!isLoading && (recs?.length ?? 0) > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center">
-                <Leaf className="w-4.5 h-4.5 text-gray-500" />
+        {/* Main Content: Paddock Agronomy Details */}
+        <div className="flex-1 overflow-y-auto">
+          {selectedPaddock ? (
+            <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto space-y-8">
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{selectedPaddock.name} Agronomy</h1>
+                  <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                    <Sprout className="w-4 h-4" /> {selectedPaddock.crop_type || 'No crop'}
+                    {selectedPaddock.land_area && ` · ${selectedPaddock.land_area} ha`}
+                  </p>
+                </div>
               </div>
-              <div><p className="text-2xl font-bold text-gray-900">{counts.total}</p><p className="text-xs text-gray-500">Total</p></div>
-            </div>
-            <div className="bg-white rounded-xl border border-yellow-200 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-yellow-50 flex items-center justify-center">
-                <Clock className="w-4.5 h-4.5 text-yellow-500" />
-              </div>
-              <div><p className="text-2xl font-bold text-yellow-700">{counts.draft}</p><p className="text-xs text-yellow-600">Pending</p></div>
-            </div>
-            <div className="bg-white rounded-xl border border-green-200 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
-                <CheckCircle className="w-4.5 h-4.5 text-green-500" />
-              </div>
-              <div><p className="text-2xl font-bold text-green-700">{counts.approved}</p><p className="text-xs text-green-600">Approved</p></div>
-            </div>
-            <div className="bg-white rounded-xl border border-red-200 shadow-sm p-4 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center">
-                <XCircle className="w-4.5 h-4.5 text-red-500" />
-              </div>
-              <div><p className="text-2xl font-bold text-red-700">{counts.rejected}</p><p className="text-xs text-red-600">Rejected</p></div>
-            </div>
-          </div>
-        )}
 
-        {/* Filters */}
-        {!isLoading && (recs?.length ?? 0) > 0 && (
-          <div className="flex flex-col sm:flex-row gap-3 mb-5">
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit flex-shrink-0">
-              {FILTER_TABS.map(tab => {
-                const count = tab.id === 'all' ? counts.total : counts[tab.id as keyof typeof counts];
-                return (
-                  <button key={tab.id} onClick={() => setStatusFilter(tab.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                      statusFilter === tab.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                    }`}>
-                    {tab.label}
-                    <span className={`text-xs rounded-full px-1.5 py-0.5 font-semibold ${
-                      statusFilter === tab.id ? 'bg-farm-100 text-farm-700' : 'bg-gray-200 text-gray-500'
-                    }`}>{count}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search type, paddock…" className="input pl-9 text-sm" />
-            </div>
-          </div>
-        )}
+              {/* Documents Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <DocumentSection 
+                  paddockId={selectedPaddock.id} 
+                  title="Soil Reports" 
+                  documentType="soil_report" 
+                  isAgronomist={isAgronomist} 
+                />
+                <DocumentSection 
+                  paddockId={selectedPaddock.id} 
+                  title="Planned Financials" 
+                  documentType="planned_financials" 
+                  isAgronomist={isAgronomist} 
+                />
+              </div>
 
-        {/* Content */}
-        {isLoading ? (
-          <div className="flex justify-center py-16"><Spinner /></div>
-        ) : (recs?.length ?? 0) === 0 ? (
-          <EmptyState icon={Leaf} title="No recommendations yet"
-            description="Create a paddock recommendation to start your agronomy workflow."
-            action={<button onClick={() => setModalOpen(true)} className="btn-primary">Create first recommendation</button>}
-          />
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <Leaf className="w-10 h-10 mx-auto mb-3 text-gray-200" />
-            <p className="text-sm">No recommendations match your filters.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((rec) => (
-              <RecCard key={rec.id} rec={rec}
-                onApprove={() => statusMutation.mutate({ id: rec.id, status: 'approved' })}
-                onReject={() => statusMutation.mutate({ id: rec.id, status: 'rejected' })}
-                onDelete={() => deleteMutation.mutate(rec.id)}
-                isUpdating={statusMutation.isPending}
-                canApprove={canApprove}
-              />
-            ))}
-          </div>
-        )}
+              {/* Recommendations Section */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-gray-200">
+                  <h2 className="text-lg font-bold text-gray-900">Recommendations</h2>
+                  {isAgronomist && (
+                    <button onClick={() => setModalOpen(true)} className="btn-primary text-sm px-3 py-1.5 flex items-center gap-2">
+                      <Plus className="w-4 h-4" /> New Recommendation
+                    </button>
+                  )}
+                </div>
+
+                {recsLoading ? (
+                  <div className="flex justify-center py-10"><Spinner /></div>
+                ) : paddockRecs.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {paddockRecs.map(rec => (
+                      <RecCard key={rec.id} rec={rec}
+                        onApprove={() => statusMutation.mutate({ id: rec.id, status: 'approved' })}
+                        onReject={() => statusMutation.mutate({ id: rec.id, status: 'rejected' })}
+                        onDelete={() => deleteMutation.mutate(rec.id)}
+                        isUpdating={statusMutation.isPending}
+                        canApprove={canApprove}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={Leaf} title="No recommendations"
+                    description="No agronomy recommendations have been made for this paddock yet."
+                    action={isAgronomist ? <button onClick={() => setModalOpen(true)} className="btn-secondary mt-2">Add Recommendation</button> : undefined}
+                  />
+                )}
+              </div>
+
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center h-full text-gray-400">
+              <Map className="w-16 h-16 text-gray-200 mb-4" />
+              <p>Select a paddock to view agronomy details</p>
+            </div>
+          )}
+        </div>
 
         {/* Create recommendation modal */}
         <Modal open={modalOpen} onClose={handleCloseModal} title="New Recommendation">
           <form onSubmit={handleSubmit(d => createMutation.mutate(d))} className="space-y-4">
             {createMutation.isError && (
               <div className="flex items-center gap-2 text-red-600 bg-red-50 rounded-lg px-3 py-2 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                Failed to save. Please check all fields and try again.
+                <AlertCircle className="w-4 h-4 flex-shrink-0" /> Failed to save.
               </div>
             )}
 
-            {/* Paddock selector */}
-            <div>
-              <label className="label">Paddock *</label>
-              <select
-                className={`input ${errors.paddock_id ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                {...register('paddock_id', { required: true })}
-              >
-                <option value="">Select paddock…</option>
-                {paddocks?.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-
-              {/* Crop type + sowing date — shown when a paddock is selected */}
-              {selectedPaddock && (selectedPaddock.crop_type || selectedPaddock.sowing_date) && (
-                <div className="mt-2 flex flex-wrap gap-3 bg-farm-50 border border-farm-100 rounded-lg px-3 py-2 text-xs text-farm-700">
-                  {selectedPaddock.crop_type && (
-                    <span className="flex items-center gap-1">
-                      <Sprout className="w-3 h-3 text-farm-500" />
-                      Crop: <strong className="ml-0.5">{selectedPaddock.crop_type}</strong>
-                    </span>
-                  )}
-                  {selectedPaddock.sowing_date && (
-                    <span className="flex items-center gap-1">
-                      <Sun className="w-3 h-3 text-farm-500" />
-                      Sown: <strong className="ml-0.5">
-                        {new Date(selectedPaddock.sowing_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </strong>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-
-            {/* Type */}
             <div>
               <label className="label">Recommendation Type *</label>
               <div className="grid grid-cols-2 gap-2">
@@ -366,17 +417,9 @@ export default function AgronomistPage() {
               {errors.type && <p className="text-xs text-red-500 mt-1">Please select a type</p>}
             </div>
 
-            {/* Description */}
             <div>
-              <label className="label">
-                Description <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <textarea
-                className="input resize-none"
-                rows={4}
-                placeholder="Describe the recommendation in detail…"
-                {...register('description')}
-              />
+              <label className="label">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+              <textarea className="input resize-none" rows={4} placeholder="Describe the recommendation in detail…" {...register('description')} />
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -387,6 +430,7 @@ export default function AgronomistPage() {
             </div>
           </form>
         </Modal>
+
       </div>
     </AppLayout>
   );

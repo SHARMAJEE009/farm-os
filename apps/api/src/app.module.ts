@@ -28,6 +28,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { WeatherModule } from './modules/weather/weather.module';
 import { HarvestModule } from './modules/harvest/harvest.module';
+import { AgronomyModule } from './modules/agronomy/agronomy.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { HarvestModule } from './modules/harvest/harvest.module';
     TasksModule,
     WeatherModule,
     HarvestModule,
+    AgronomyModule,
   ],
 })
 export class AppModule {}

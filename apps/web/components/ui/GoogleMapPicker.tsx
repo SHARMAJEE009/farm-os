@@ -200,20 +200,32 @@ export interface MapPaddock {
   boundary_geojson?: any | null;
   latitude?: number | null;
   longitude?: number | null;
+  color?: string;
+}
+
+export interface MobLocation {
+  mob_id: string;
+  mob_name: string;
+  head_count: number;
+  paddock_id: string;
+  paddock_name?: string;
 }
 
 /**
  * Shows all paddock boundaries as distinct coloured polygons with centroid labels.
+ * When mobLocations is provided, renders livestock badge overlays at paddock centroids.
  * Accepts either saved DB paddocks (boundary_geojson) or raw KML placemarks (for preview).
  */
 export function FarmPaddockMap({
   paddocks = [],
   placemarks,
+  mobLocations,
   onPaddockClick,
   height = 500,
 }: {
   paddocks?: MapPaddock[];
   placemarks?: KmlPlacemark[];
+  mobLocations?: MobLocation[];
   onPaddockClick?: (id: string) => void;
   height?: number;
 }) {
@@ -244,7 +256,7 @@ export function FarmPaddockMap({
               lng: path.reduce((s, pt) => s + pt.lng, 0) / path.length,
             }
           : null;
-      return { id: p.id ?? '', name: p.name, path, centroid };
+      return { id: p.id ?? '', name: p.name, path, centroid, color: p.color };
     });
   }, [placemarks, paddocks]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -283,6 +295,15 @@ export function FarmPaddockMap({
     if (mapRef.current) mapRef.current.setMapTypeId(mapMode);
   }, [mapMode]);
 
+  // Build a paddockId -> mob lookup for livestock overlays
+  const mobByPaddock = useMemo(() => {
+    const map = new Map<string, MobLocation>();
+    if (mobLocations) {
+      mobLocations.forEach(ml => map.set(ml.paddock_id, ml));
+    }
+    return map;
+  }, [mobLocations]);
+
   // Redraw whenever data or ready state changes
   useEffect(() => {
     if (!ready || !mapRef.current) return;
@@ -294,18 +315,27 @@ export function FarmPaddockMap({
 
     const bounds = new g.LatLngBounds();
     let hasData = false;
+    const hasMobData = mobLocations && mobLocations.length > 0;
 
     items.forEach((item, idx) => {
-      const color = POLY_PALETTE[idx % POLY_PALETTE.length];
+      const mob = item.id ? mobByPaddock.get(item.id) : undefined;
+      
+      // Color logic:
+      // 1. If it has a mob, green (#16a34a)
+      // 2. If it has a crop color passed in, use that
+      // 3. Fallback to POLY_PALETTE
+      const color = mob ? '#16a34a' : (item.color || POLY_PALETTE[idx % POLY_PALETTE.length]);
+      const fillOpacity = mob ? 0.35 : 0.28;
+      const strokeWeight = mob ? 3 : 2;
 
       if (item.path.length >= 3) {
         const poly = new g.Polygon({
           paths: item.path,
           strokeColor: color,
           strokeOpacity: 1,
-          strokeWeight: 2,
+          strokeWeight,
           fillColor: color,
-          fillOpacity: 0.28,
+          fillOpacity,
           map,
         });
         if (onPaddockClick && item.id) {
@@ -318,40 +348,65 @@ export function FarmPaddockMap({
 
       if (item.centroid) {
         if (item.path.length === 0) { bounds.extend(item.centroid); hasData = true; }
-        
-        // Create a custom SVG icon for the label to prevent overlap confusion and improve readability
-        const labelText = item.name;
-        const textWidth = Math.max(40, labelText.length * 7 + 16);
-        const svg = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="${textWidth}" height="24" viewBox="0 0 ${textWidth} 24">
-            <rect x="2" y="2" width="${textWidth - 4}" height="20" rx="10" fill="${color}" stroke="white" stroke-width="1.5" />
-            <text x="50%" y="15" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${labelText}</text>
-          </svg>
-        `;
 
-        const marker = new g.Marker({
-          position: item.centroid,
-          map,
-          icon: {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-            anchor: new g.Point(textWidth / 2, 12),
-          },
-          zIndex: 3,
-        });
-        if (onPaddockClick && item.id) {
-          marker.addListener('click', () => onPaddockClick(item.id!));
+        if (mob) {
+          // ── Livestock badge: cattle emoji + mob name + head count ──
+          const badgeText = `🐄 ${mob.mob_name} · ${mob.head_count} hd`;
+          const badgeW = Math.max(100, badgeText.length * 6.5 + 24);
+          const badgeH = 32;
+          const badgeSvg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${badgeW}" height="${badgeH}" viewBox="0 0 ${badgeW} ${badgeH}">
+              <defs><filter id="s"><feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.3"/></filter></defs>
+              <rect x="2" y="2" width="${badgeW - 4}" height="${badgeH - 4}" rx="14" fill="#065f46" stroke="#34d399" stroke-width="2" filter="url(#s)"/>
+              <text x="50%" y="${badgeH / 2 + 1}" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${badgeText}</text>
+            </svg>
+          `;
+          const badgeMarker = new g.Marker({
+            position: item.centroid,
+            map,
+            icon: {
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(badgeSvg),
+              anchor: new g.Point(badgeW / 2, badgeH / 2),
+            },
+            zIndex: 10,
+          });
+          if (onPaddockClick && item.id) {
+            badgeMarker.addListener('click', () => onPaddockClick(item.id!));
+          }
+          drawRef.current.push(badgeMarker);
+        } else {
+          // ── Regular paddock name label ──
+          const labelText = item.name;
+          const textWidth = Math.max(40, labelText.length * 7 + 16);
+          const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${textWidth}" height="24" viewBox="0 0 ${textWidth} 24">
+              <rect x="2" y="2" width="${textWidth - 4}" height="20" rx="10" fill="${color}" stroke="white" stroke-width="1.5" />
+              <text x="50%" y="15" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="white" text-anchor="middle" dominant-baseline="middle">${labelText}</text>
+            </svg>
+          `;
+          const marker = new g.Marker({
+            position: item.centroid,
+            map,
+            icon: {
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+              anchor: new g.Point(textWidth / 2, 12),
+            },
+            zIndex: 3,
+          });
+          if (onPaddockClick && item.id) {
+            marker.addListener('click', () => onPaddockClick(item.id!));
+          }
+          drawRef.current.push(marker);
         }
-        drawRef.current.push(marker);
       }
     });
 
     if (hasData) {
       map.fitBounds(bounds, 48);
-      // Second resize after fitBounds so tiles render correctly
       window.google.maps.event.trigger(map, 'resize');
       map.fitBounds(bounds, 48);
     }
-  }, [ready, items, onPaddockClick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, items, onPaddockClick, mobByPaddock, mobLocations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="relative rounded-xl overflow-hidden border border-gray-200" style={{ height }}>

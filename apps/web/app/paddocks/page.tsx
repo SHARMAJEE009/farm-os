@@ -32,24 +32,24 @@ const GoogleMapPicker = dynamic(
 );
 
 // ── Crop catalogue ──────────────────────────────────────────────────────────
-interface Crop { label: string; emoji: string; color: string; bg: string; }
+interface Crop { label: string; emoji: string; color: string; bg: string; hexColor: string; }
 
 const CROPS: Crop[] = [
-  { label: 'Wheat',     emoji: '🌾', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50'  },
-  { label: 'Barley',    emoji: '🌾', color: 'bg-amber-100  text-amber-800',  bg: 'bg-amber-50'   },
-  { label: 'Canola',    emoji: '🌼', color: 'bg-lime-100   text-lime-800',   bg: 'bg-lime-50'    },
-  { label: 'Corn',      emoji: '🌽', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50'  },
-  { label: 'Soybeans',  emoji: '🫘', color: 'bg-green-100  text-green-800',  bg: 'bg-green-50'   },
-  { label: 'Sorghum',   emoji: '🌿', color: 'bg-red-100    text-red-800',    bg: 'bg-red-50'     },
-  { label: 'Cotton',    emoji: '🤍', color: 'bg-sky-100    text-sky-800',    bg: 'bg-sky-50'     },
-  { label: 'Sunflower', emoji: '🌻', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50'  },
-  { label: 'Oats',      emoji: '🌾', color: 'bg-orange-100 text-orange-800', bg: 'bg-orange-50'  },
-  { label: 'Rice',      emoji: '🍚', color: 'bg-emerald-100 text-emerald-800', bg: 'bg-emerald-50' },
-  { label: 'Chickpeas', emoji: '🫘', color: 'bg-amber-100  text-amber-800',  bg: 'bg-amber-50'   },
-  { label: 'Lentils',   emoji: '🫘', color: 'bg-orange-100 text-orange-800', bg: 'bg-orange-50'  },
-  { label: 'Potatoes',  emoji: '🥔', color: 'bg-stone-100  text-stone-800',  bg: 'bg-stone-50'   },
-  { label: 'Lucerne',   emoji: '🌿', color: 'bg-green-100  text-green-800',  bg: 'bg-green-50'   },
-  { label: 'Other',     emoji: '🌱', color: 'bg-gray-100   text-gray-700',   bg: 'bg-gray-50'    },
+  { label: 'Wheat',     emoji: '🌾', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50',  hexColor: '#eab308' },
+  { label: 'Barley',    emoji: '🌾', color: 'bg-amber-100  text-amber-800',  bg: 'bg-amber-50',   hexColor: '#f59e0b' },
+  { label: 'Canola',    emoji: '🌼', color: 'bg-lime-100   text-lime-800',   bg: 'bg-lime-50',    hexColor: '#84cc16' },
+  { label: 'Corn',      emoji: '🌽', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50',  hexColor: '#eab308' },
+  { label: 'Soybeans',  emoji: '🫘', color: 'bg-green-100  text-green-800',  bg: 'bg-green-50',   hexColor: '#22c55e' },
+  { label: 'Sorghum',   emoji: '🌿', color: 'bg-red-100    text-red-800',    bg: 'bg-red-50',     hexColor: '#ef4444' },
+  { label: 'Cotton',    emoji: '🤍', color: 'bg-sky-100    text-sky-800',    bg: 'bg-sky-50',     hexColor: '#0ea5e9' },
+  { label: 'Sunflower', emoji: '🌻', color: 'bg-yellow-100 text-yellow-800', bg: 'bg-yellow-50',  hexColor: '#eab308' },
+  { label: 'Oats',      emoji: '🌾', color: 'bg-orange-100 text-orange-800', bg: 'bg-orange-50',  hexColor: '#f97316' },
+  { label: 'Rice',      emoji: '🍚', color: 'bg-emerald-100 text-emerald-800', bg: 'bg-emerald-50', hexColor: '#10b981' },
+  { label: 'Chickpeas', emoji: '🫘', color: 'bg-amber-100  text-amber-800',  bg: 'bg-amber-50',   hexColor: '#f59e0b' },
+  { label: 'Lentils',   emoji: '🫘', color: 'bg-orange-100 text-orange-800', bg: 'bg-orange-50',  hexColor: '#f97316' },
+  { label: 'Potatoes',  emoji: '🥔', color: 'bg-stone-100  text-stone-800',  bg: 'bg-stone-50',   hexColor: '#78716c' },
+  { label: 'Lucerne',   emoji: '🌿', color: 'bg-green-100  text-green-800',  bg: 'bg-green-50',   hexColor: '#22c55e' },
+  { label: 'Other',     emoji: '🌱', color: 'bg-gray-100   text-gray-700',   bg: 'bg-gray-50',    hexColor: '#6b7280' },
 ];
 const CROP_MAP = Object.fromEntries(CROPS.map(c => [c.label, c]));
 

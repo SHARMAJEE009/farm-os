@@ -60,6 +60,17 @@ export interface Recommendation {
   agronomist?: User;
 }
 
+export interface AgronomyDocument {
+  id: string;
+  paddock_id: string;
+  document_type: 'soil_report' | 'planned_financials';
+  file_url: string;
+  file_name: string;
+  uploaded_by: string | null;
+  uploaded_by_name?: string;
+  created_at: string;
+}
+
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
 export interface Payment {
@@ -284,8 +295,10 @@ export interface Mob {
   breed?: Breed;
   animal_class?: AnimalClass;
   current_paddock_name?: string;
+  current_paddock_id?: string;
   current_entry_date?: string;
   stocking_rate_per_ha?: number;
+  paddock_head_count?: number;
 }
 
 export interface MobPaddockAssignment {

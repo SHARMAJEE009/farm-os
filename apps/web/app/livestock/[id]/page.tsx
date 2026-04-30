@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Beef, ArrowLeft, MapPin, Activity, Scale, Plus, 
   Calendar, AlertCircle, History, TrendingUp, TrendingDown, Layers,
-  DollarSign
+  DollarSign, MoveRight
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -29,11 +29,12 @@ export default function MobDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'health' | 'weigh'>('health');
+  const [activeTab, setActiveTab] = useState<'health' | 'weigh' | 'history'>('health');
   const [role, setRole] = useState<string>('staff');
   
   const [assignModal, setAssignModal] = useState(false);
   const [exitModal, setExitModal] = useState(false);
+  const [moveModal, setMoveModal] = useState(false);
   const [healthModal, setHealthModal] = useState(false);
   const [weighModal, setWeighModal] = useState(false);
 
@@ -58,9 +59,20 @@ export default function MobDetailPage() {
     queryFn: () => api.get(`/livestock/mobs/${id}/weigh-events`).then(r => r.data),
   });
 
+  const { data: movementHistory, isLoading: historyLoading } = useQuery<any[]>({
+    queryKey: ['mob-history', id],
+    queryFn: () => api.get(`/livestock/mobs/${id}/movement-history`).then(r => r.data),
+  });
+
   const { data: paddocks } = useQuery<Paddock[]>({
     queryKey: ['paddocks'],
     queryFn: () => api.get('/paddocks', { params: { farm_id: mob?.farm_id } }).then(r => r.data),
+    enabled: !!mob?.farm_id,
+  });
+
+  const { data: mobLocations } = useQuery<any[]>({
+    queryKey: ['mob-locations', mob?.farm_id],
+    queryFn: () => api.get('/livestock/mob-locations', { params: { farm_id: mob!.farm_id } }).then(r => r.data),
     enabled: !!mob?.farm_id,
   });
 
@@ -80,6 +92,7 @@ export default function MobDetailPage() {
   // Forms
   const assignForm = useForm({ defaultValues: { paddock_id: '', entry_date: new Date().toISOString().split('T')[0], entry_head_count: mob?.head_count || 0 } });
   const exitForm = useForm({ defaultValues: { exit_date: new Date().toISOString().split('T')[0], exit_head_count: mob?.head_count || 0, exit_reason: 'moved', sale_price_per_head: '' } });
+  const moveForm = useForm({ defaultValues: { destination_paddock_id: '', move_date: new Date().toISOString().split('T')[0], head_count: mob?.paddock_head_count || mob?.head_count || 0, notes: '' } });
   const healthForm = useForm({ defaultValues: { 
     event_type: 'treatment',
     date: new Date().toISOString().split('T')[0], 
@@ -99,7 +112,14 @@ export default function MobDetailPage() {
   } });
 
   const onPaddockClick = (paddockId: string) => {
-    if (!mob || mob.current_paddock_name) return; // Already assigned, maybe handle move logic later
+    if (!mob) return;
+    if (mob.current_paddock_name) {
+      if (paddockId !== mob.current_paddock_id) {
+        moveForm.setValue('destination_paddock_id', paddockId);
+        setMoveModal(true);
+      }
+      return;
+    }
     assignForm.setValue('paddock_id', paddockId);
     setAssignModal(true);
   };
@@ -112,7 +132,21 @@ export default function MobDetailPage() {
     }),
     onSuccess: () => { 
       qc.invalidateQueries({ queryKey: ['mob', id] }); 
+      qc.invalidateQueries({ queryKey: ['mob-history', id] });
       setAssignModal(false); 
+    },
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: (d: any) => api.post(`/livestock/mobs/${id}/move`, {
+      ...d,
+      head_count: parseInt(d.head_count)
+    }),
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ['mob', id] }); 
+      qc.invalidateQueries({ queryKey: ['mob-history', id] });
+      qc.invalidateQueries({ queryKey: ['mob-locations'] });
+      setMoveModal(false); 
     },
   });
 
@@ -122,7 +156,12 @@ export default function MobDetailPage() {
       exit_head_count: parseInt(d.exit_head_count),
       sale_price_per_head: d.sale_price_per_head ? parseFloat(d.sale_price_per_head) : null
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['mob', id] }); setExitModal(false); },
+    onSuccess: () => { 
+      qc.invalidateQueries({ queryKey: ['mob', id] }); 
+      qc.invalidateQueries({ queryKey: ['mob-history', id] });
+      qc.invalidateQueries({ queryKey: ['mob-locations'] });
+      setExitModal(false); 
+    },
   });
 
   const healthMutation = useMutation({
@@ -170,9 +209,14 @@ export default function MobDetailPage() {
               </button>
             )}
             {isWritable && mob.current_paddock_name && (
-              <button onClick={() => setExitModal(true)} className="btn-secondary text-red-600 border-red-100 hover:bg-red-50 flex items-center gap-2">
-                <ArrowLeft className="w-4 h-4 rotate-180" /> Exit Paddock
-              </button>
+              <>
+                <button onClick={() => setMoveModal(true)} className="btn-primary flex items-center gap-2">
+                  <MoveRight className="w-4 h-4" /> Move
+                </button>
+                <button onClick={() => setExitModal(true)} className="btn-secondary text-red-600 border-red-100 hover:bg-red-50 flex items-center gap-2">
+                  <ArrowLeft className="w-4 h-4 rotate-180" /> Exit Paddock
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -245,6 +289,7 @@ export default function MobDetailPage() {
             <div className="h-[300px] border-t border-emerald-100">
               <FarmPaddockMap 
                 paddocks={paddocks || []} 
+                mobLocations={mobLocations}
                 height={300} 
                 onPaddockClick={onPaddockClick}
               />
@@ -275,6 +320,14 @@ export default function MobDetailPage() {
               }`}
             >
               <Scale className="w-4 h-4" /> Weigh Events
+            </button>
+            <button 
+              onClick={() => setActiveTab('history')}
+              className={`px-6 py-4 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
+                activeTab === 'history' ? 'border-farm-600 text-farm-700 bg-farm-50/30' : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              <History className="w-4 h-4" /> Movement History
             </button>
           </div>
 
@@ -369,6 +422,37 @@ export default function MobDetailPage() {
                 ) : <div className="text-center py-10 text-gray-400 text-sm">No weight records.</div>}
               </div>
             )}
+
+            {activeTab === 'history' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-base font-semibold text-gray-900">Movement History</h4>
+                </div>
+                {historyLoading ? <Spinner /> : movementHistory?.length ? (
+                  <div className="relative border-l-2 border-emerald-100 ml-3 pl-6 space-y-6 py-2">
+                    {movementHistory.map((hist, i) => (
+                      <div key={hist.id} className="relative">
+                        <div className={`absolute -left-[31px] w-3 h-3 rounded-full border-2 border-white ${hist.exit_date ? 'bg-gray-300' : 'bg-emerald-500 ring-4 ring-emerald-50'}`} />
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900">{hist.paddock_name}</p>
+                            <p className="text-sm text-gray-500">
+                              {formatDate(hist.entry_date)} {hist.exit_date ? `to ${formatDate(hist.exit_date)}` : '(Current)'}
+                            </p>
+                          </div>
+                          <div className="text-sm bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100 text-right">
+                            <p className="font-medium text-gray-900">{hist.entry_head_count} head entered</p>
+                            {hist.exit_head_count != null && (
+                              <p className="text-gray-500 text-xs mt-0.5">{hist.exit_head_count} head exited</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-center py-10 text-gray-400 text-sm">No movement records.</div>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -429,6 +513,64 @@ export default function MobDetailPage() {
             <button type="submit" disabled={exitMutation.isPending} className="btn-primary w-full mt-4 bg-red-600 hover:bg-red-700">
               {exitMutation.isPending ? 'Processing…' : 'Record Exit'}
             </button>
+          </form>
+        </Modal>
+
+        <Modal open={moveModal} onClose={() => { setMoveModal(false); moveForm.reset(); }} title="Move Livestock">
+          <form onSubmit={moveForm.handleSubmit(d => moveMutation.mutate(d))} className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex justify-between items-center mb-4">
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">Moving</p>
+                <p className="font-bold text-gray-900">{mob.name}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 uppercase tracking-wider">From</p>
+                <p className="font-semibold text-emerald-700">{mob.current_paddock_name}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Destination Paddock</label>
+              <select className="input" {...moveForm.register('destination_paddock_id', { required: true })}>
+                <option value="">Select destination…</option>
+                {paddocks?.filter(p => p.id !== mob.current_paddock_id).map(p => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.land_area} ha)</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Move Date</label>
+                <input type="date" className="input" {...moveForm.register('move_date', { required: true })} />
+              </div>
+              <div>
+                <label className="label">Head to Move</label>
+                <input 
+                  type="number" 
+                  className="input" 
+                  max={mob.paddock_head_count || mob.head_count} 
+                  {...moveForm.register('head_count', { required: true })} 
+                />
+                {moveForm.watch('head_count') < (mob.paddock_head_count || mob.head_count) && (
+                  <p className="text-[10px] text-orange-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Gate split: {(mob.paddock_head_count || mob.head_count) - moveForm.watch('head_count')} will remain
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Notes (Optional)</label>
+              <input className="input" placeholder="e.g. Moved to better pasture" {...moveForm.register('notes')} />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => { setMoveModal(false); moveForm.reset(); }} className="btn-secondary flex-1">Cancel</button>
+              <button type="submit" disabled={moveMutation.isPending} className="btn-primary flex-1">
+                {moveMutation.isPending ? 'Moving…' : 'Confirm Move'}
+              </button>
+            </div>
           </form>
         </Modal>
 

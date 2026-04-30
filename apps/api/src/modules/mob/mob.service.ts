@@ -8,9 +8,29 @@ export class MobService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
   async findAll(farmId: string, status?: string) {
+    // Enhanced query: joins current paddock assignment so the frontend
+    // can render mob locations on the map without N+1 queries
+    const baseQuery = `
+      SELECT m.*,
+             p.name   AS current_paddock_name,
+             p.id     AS current_paddock_id,
+             mpa.entry_date AS current_entry_date,
+             mpa.entry_head_count AS paddock_head_count,
+             mpa.stocking_rate_per_ha
+      FROM mob m
+      LEFT JOIN LATERAL (
+        SELECT paddock_id, entry_date, entry_head_count, stocking_rate_per_ha
+        FROM mob_paddock_assignment
+        WHERE mob_id = m.id AND exit_date IS NULL
+        ORDER BY entry_date DESC
+        LIMIT 1
+      ) mpa ON true
+      LEFT JOIN paddocks p ON mpa.paddock_id = p.id
+      WHERE m.farm_id = $1
+    `;
     const query = status
-      ? 'SELECT * FROM mob WHERE farm_id = $1 AND status = $2 ORDER BY created_at DESC'
-      : 'SELECT * FROM mob WHERE farm_id = $1 ORDER BY created_at DESC';
+      ? baseQuery + ' AND m.status = $2 ORDER BY m.created_at DESC'
+      : baseQuery + ' ORDER BY m.created_at DESC';
     const params = status ? [farmId, status] : [farmId];
     const { rows } = await this.db.query(query, params);
     return rows;
@@ -20,11 +40,13 @@ export class MobService {
     const { rows } = await this.db.query(`
       SELECT m.*, 
              p.name as current_paddock_name,
+             p.id as current_paddock_id,
              mpa.entry_date as current_entry_date,
+             mpa.entry_head_count as paddock_head_count,
              mpa.stocking_rate_per_ha
       FROM mob m
       LEFT JOIN LATERAL (
-        SELECT paddock_id, entry_date, stocking_rate_per_ha
+        SELECT paddock_id, entry_date, entry_head_count, stocking_rate_per_ha
         FROM mob_paddock_assignment
         WHERE mob_id = m.id AND exit_date IS NULL
         ORDER BY entry_date DESC
@@ -60,14 +82,12 @@ export class MobService {
       if (dto.purchase_price_per_head && dto.purchase_price_per_head > 0) {
         const totalCost = dto.purchase_price_per_head * dto.head_count;
         
-        // 1. Create financial transaction (unassigned to paddock for now)
         const { rows: txRows } = await client.query(
           `INSERT INTO financial_transactions (source, reference_id, amount)
            VALUES ('livestock', $1, $2) RETURNING id`,
           [mob.id, totalCost]
         );
         
-        // 2. Create livestock financial entry
         await client.query(
           `INSERT INTO livestock_financial_entry (mob_id, entry_type, amount, date, financial_transaction_id)
            VALUES ($1, 'purchase', $2, $3, $4)`,

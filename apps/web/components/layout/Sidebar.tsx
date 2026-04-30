@@ -20,6 +20,13 @@ import {
   BarChart3,
   Building2,
   UserPlus,
+  ClipboardList,
+  FlaskConical,
+  Sprout,
+  Warehouse,
+  ListChecks,
+  CloudSun,
+  Wheat,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -32,16 +39,34 @@ const navSections = [
     items: [
       { href: '/dashboard',    label: 'Dashboard',     icon: LayoutDashboard },
       { href: '/farms',        label: 'Farm',          icon: Building2 },
+      { href: '/paddocks',     label: 'Paddocks',      icon: Sprout },
       { href: '/staff',        label: 'Staff',         icon: Users },
       { href: '/livestock',    label: 'Livestock',     icon: Beef },
-      { href: '/agronomist',   label: 'Agronomy',      icon: Leaf },
-      { href: '/supplier',     label: 'Supplier',      icon: ShoppingCart },
-      { href: '/finance',      label: 'Finance',       icon: DollarSign },
     ],
   },
   {
-    label: 'Intelligence',
+    label: 'Crop Management',
     items: [
+      { href: '/crop-plans',   label: 'Crop Plans',    icon: Wheat },
+      { href: '/activities',   label: 'Activities',    icon: ClipboardList },
+      { href: '/products',     label: 'Products',      icon: FlaskConical },
+      { href: '/inventory',    label: 'Inventory',     icon: Warehouse },
+      { href: '/harvest',      label: 'Harvest',       icon: Sprout },
+    ],
+  },
+  {
+    label: 'Planning',
+    items: [
+      { href: '/tasks',        label: 'Tasks',         icon: ListChecks },
+      { href: '/agronomist',   label: 'Agronomy',      icon: Leaf },
+      { href: '/supplier',     label: 'Supplier',      icon: ShoppingCart },
+      { href: '/weather',      label: 'Weather',       icon: CloudSun },
+    ],
+  },
+  {
+    label: 'Finance & Intelligence',
+    items: [
+      { href: '/finance',      label: 'Finance',       icon: DollarSign },
       { href: '/forecasting',  label: 'Forecasting',   icon: TrendingUp },
       { href: '/benchmarking', label: 'Benchmarking',  icon: BarChart3 },
       { href: '/news',         label: 'News',          icon: Newspaper },
@@ -88,7 +113,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <nav className="flex-1 px-3 py-4 space-y-4 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {filteredSections.map((section) => (
           <div key={section.label}>
             <p className="px-3 mb-1.5 text-xs font-semibold text-farm-500 uppercase tracking-wider">
@@ -96,14 +121,14 @@ export function Sidebar() {
             </p>
             <div className="space-y-0.5">
               {section.items.map(({ href, label, icon: Icon }) => {
-                const active = pathname.startsWith(href);
+                const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'));
                 return (
                   <Link
                     key={href}
                     href={href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                       active
                         ? 'bg-farm-600 text-white'
                         : 'text-farm-300 hover:text-white hover:bg-farm-700/50'
@@ -127,7 +152,7 @@ export function Sidebar() {
             <Link
               href="/team?add=1"
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-farm-300 hover:text-white hover:bg-farm-700/50 transition-colors"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-farm-300 hover:text-white hover:bg-farm-700/50 transition-colors"
             >
               <UserPlus className="w-4 h-4 flex-shrink-0" />
               Add Member
@@ -140,7 +165,7 @@ export function Sidebar() {
       <div className="px-3 pb-4 border-t border-farm-700 pt-3">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-farm-300 hover:text-white hover:bg-farm-700/50 w-full transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-farm-300 hover:text-white hover:bg-farm-700/50 w-full transition-colors"
         >
           <LogOut className="w-4 h-4" />
           Sign out

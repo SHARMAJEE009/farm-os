@@ -20,6 +20,14 @@ import { MobAssignmentModule } from './modules/mob-assignment/mob-assignment.mod
 import { HealthEventModule } from './modules/health-event/health-event.module';
 import { WeighEventModule } from './modules/weigh-event/weigh-event.module';
 import { AiModule } from './modules/ai/ai.module';
+// Agworld feature modules
+import { ActivitiesModule } from './modules/activities/activities.module';
+import { ProductsModule } from './modules/products/products.module';
+import { CropPlansModule } from './modules/crop-plans/crop-plans.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { WeatherModule } from './modules/weather/weather.module';
+import { HarvestModule } from './modules/harvest/harvest.module';
 
 @Module({
   imports: [
@@ -44,6 +52,14 @@ import { AiModule } from './modules/ai/ai.module';
     HealthEventModule,
     WeighEventModule,
     AiModule,
+    // Agworld feature modules
+    ActivitiesModule,
+    ProductsModule,
+    CropPlansModule,
+    InventoryModule,
+    TasksModule,
+    WeatherModule,
+    HarvestModule,
   ],
 })
 export class AppModule {}

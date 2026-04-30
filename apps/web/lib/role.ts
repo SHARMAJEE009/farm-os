@@ -26,11 +26,17 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   supplier:   'Supplier',
 };
 
-export const ROLE_NAV: Record<UserRole, string[]> = {
-  owner:      ['/dashboard', '/farms', '/staff', '/livestock', '/team', '/agronomist', '/supplier', '/finance', '/forecasting', '/benchmarking', '/news', '/intelligence/ai-assistant'],
-  manager:    ['/dashboard', '/farms', '/staff', '/livestock', '/agronomist', '/supplier', '/finance', '/news', '/intelligence/ai-assistant'],
-  agronomist: ['/dashboard', '/farms', '/livestock', '/agronomist', '/news', '/intelligence/ai-assistant'],
-  staff:      ['/dashboard', '/farms', '/staff', '/livestock', '/news', '/intelligence/ai-assistant'],
-  supplier:   ['/dashboard', '/supplier', '/news', '/intelligence/ai-assistant'],
-};
+const ALL_PAGES = [
+  '/dashboard', '/farms', '/paddocks', '/staff', '/livestock', '/team',
+  '/crop-plans', '/activities', '/products', '/inventory', '/harvest',
+  '/tasks', '/agronomist', '/supplier', '/weather',
+  '/finance', '/forecasting', '/benchmarking', '/news', '/intelligence/ai-assistant',
+];
 
+export const ROLE_NAV: Record<UserRole, string[]> = {
+  owner:      ALL_PAGES,
+  manager:    ALL_PAGES.filter(p => p !== '/team'),
+  agronomist: ['/dashboard', '/farms', '/paddocks', '/livestock', '/crop-plans', '/activities', '/products', '/harvest', '/agronomist', '/weather', '/news', '/intelligence/ai-assistant'],
+  staff:      ['/dashboard', '/farms', '/paddocks', '/staff', '/livestock', '/activities', '/tasks', '/inventory', '/weather', '/harvest', '/news', '/intelligence/ai-assistant'],
+  supplier:   ['/dashboard', '/supplier', '/products', '/inventory', '/news', '/intelligence/ai-assistant'],
+};

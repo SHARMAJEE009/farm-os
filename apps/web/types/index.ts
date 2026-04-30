@@ -338,3 +338,190 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
 }
+
+// ── Agworld Features ──────────────────────────────────────────────
+
+export interface Product {
+  id: string;
+  name: string;
+  category: 'chemical' | 'fertilizer' | 'seed' | 'adjuvant';
+  active_ingredient: string | null;
+  manufacturer: string | null;
+  unit: string;
+  default_rate: number | null;
+  rate_unit: string | null;
+  withholding_period_days: number | null;
+  reentry_interval_hours: number | null;
+  signal_word: string | null;
+  sds_url: string | null;
+  notes: string | null;
+  farm_id: string | null;
+  created_at: string;
+}
+
+export interface ActivityProduct {
+  id: string;
+  product_name: string;
+  rate: number | null;
+  rate_unit: string | null;
+  total_quantity: number | null;
+  total_cost: number | null;
+}
+
+export type ActivityType = 'spraying' | 'fertilizing' | 'seeding' | 'harvesting' | 'cultivation' | 'irrigation';
+export type ActivityStatus = 'planned' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface Activity {
+  id: string;
+  farm_id: string;
+  paddock_id: string;
+  paddock_name?: string;
+  crop_plan_id: string | null;
+  recommendation_id: string | null;
+  activity_type: ActivityType;
+  status: ActivityStatus;
+  planned_date: string | null;
+  completed_date: string | null;
+  operator_name: string | null;
+  equipment: string | null;
+  wind_speed_kmh: number | null;
+  wind_direction: string | null;
+  temperature_c: number | null;
+  humidity_pct: number | null;
+  area_applied_ha: number | null;
+  water_rate_lha: number | null;
+  notes: string | null;
+  cost_amount: number | null;
+  products?: ActivityProduct[];
+  created_at: string;
+}
+
+export type CropPlanStatus = 'planned' | 'active' | 'harvested' | 'abandoned';
+
+export interface CropPlan {
+  id: string;
+  farm_id: string;
+  paddock_id: string;
+  paddock_name?: string;
+  land_area?: number | null;
+  season: string;
+  planned_crop: string | null;
+  planned_variety: string | null;
+  target_yield_per_ha: number | null;
+  target_yield_unit: string;
+  estimated_revenue_per_ha: number | null;
+  estimated_cost_per_ha: number | null;
+  actual_yield_per_ha: number | null;
+  actual_revenue_per_ha: number | null;
+  sowing_date: string | null;
+  harvest_date: string | null;
+  status: CropPlanStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface InventoryItem {
+  id: string;
+  farm_id: string;
+  product_id: string | null;
+  product_name: string;
+  category: string;
+  current_stock: number;
+  unit: string;
+  reorder_level: number | null;
+  location: string | null;
+  batch_number: string | null;
+  expiry_date: string | null;
+  last_updated: string;
+  created_at: string;
+}
+
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type TaskStatus = 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface Task {
+  id: string;
+  farm_id: string;
+  paddock_id: string | null;
+  paddock_name?: string;
+  title: string;
+  description: string | null;
+  task_type: string;
+  priority: TaskPriority;
+  status: TaskStatus;
+  assigned_to: string | null;
+  assigned_to_name: string | null;
+  due_date: string | null;
+  completed_date: string | null;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface WeatherCurrent {
+  temperature_c: number;
+  feels_like_c: number;
+  humidity_pct: number;
+  wind_speed_kmh: number;
+  wind_direction: string;
+  pressure_hpa: number;
+  uv_index: number;
+  cloud_cover_pct: number;
+  rain_mm_1h: number;
+  dew_point_c: number;
+  description: string;
+  icon: string;
+}
+
+export interface WeatherForecastDay {
+  date: string;
+  day: string;
+  high_c: number;
+  low_c: number;
+  rain_chance_pct: number;
+  rain_mm: number;
+  wind_kmh: number;
+  description: string;
+  icon: string;
+}
+
+export interface WeatherData {
+  current: WeatherCurrent;
+  forecast: WeatherForecastDay[];
+  location: string;
+  cached_at: string;
+}
+
+export interface SprayCondition {
+  value: number;
+  unit: string;
+  ok: boolean;
+  limit: string;
+}
+
+export interface SprayConditions {
+  suitable: boolean;
+  conditions: Record<string, SprayCondition>;
+  recommendation: string;
+}
+
+export interface HarvestRecord {
+  id: string;
+  farm_id: string;
+  paddock_id: string;
+  paddock_name?: string;
+  land_area?: number | null;
+  crop_plan_id: string | null;
+  harvest_date: string;
+  crop: string | null;
+  yield_total: number | null;
+  yield_unit: string;
+  yield_per_ha: number | null;
+  moisture_pct: number | null;
+  grade: string | null;
+  price_per_unit: number | null;
+  total_revenue: number | null;
+  notes: string | null;
+  created_at: string;
+}

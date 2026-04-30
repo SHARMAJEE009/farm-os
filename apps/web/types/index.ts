@@ -115,7 +115,7 @@ export interface FuelLog {
   paddock?: Paddock;
 }
 
-export type TransactionSource = 'labour' | 'fuel' | 'supplier';
+export type TransactionSource = 'labour' | 'fuel' | 'supplier' | 'livestock';
 
 export interface FinancialTransaction {
   id: string;
@@ -130,6 +130,7 @@ export interface FinancialTransaction {
   supplier_name?: string | null;
   staff_name?: string | null;
   fuel_litres?: number | null;
+  mob_name?: string | null;
 }
 
 // API response wrappers
@@ -283,6 +284,8 @@ export interface Mob {
   breed?: Breed;
   animal_class?: AnimalClass;
   current_paddock_name?: string;
+  current_entry_date?: string;
+  stocking_rate_per_ha?: number;
 }
 
 export interface MobPaddockAssignment {
@@ -327,4 +330,11 @@ export interface WeighEvent {
   notes: string | null;
   recorded_by: string | null;
   created_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
 }

@@ -197,7 +197,7 @@ const POLY_PALETTE = [
 export interface MapPaddock {
   id?: string;
   name: string;
-  boundary_geojson?: { type: string; coordinates: number[][][] } | null;
+  boundary_geojson?: any | null;
   latitude?: number | null;
   longitude?: number | null;
 }

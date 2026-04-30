@@ -161,7 +161,10 @@ export default function PaddocksPage() {
   const [kmlBoundary, setKmlBoundary] = useState<LatLngTuple[] | null>(null);
   const [kmlFileName, setKmlFileName] = useState<string | null>(null);
   const [kmlError, setKmlError]       = useState<string | null>(null);
+  const [bulkOpen, setBulkOpen]             = useState(false);
+  const [bulkPlacemarks, setBulkPlacemarks] = useState<KmlPlacemark[]>([]);
 
+  const fileInputRef      = useRef<HTMLInputElement>(null);
   const bulkFileInputRef  = useRef<HTMLInputElement>(null);
 
   const { data: paddocks, isLoading } = useQuery<Paddock[]>({

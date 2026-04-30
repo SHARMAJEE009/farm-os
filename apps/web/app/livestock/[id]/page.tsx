@@ -79,12 +79,27 @@ export default function MobDetailPage() {
 
   // Forms
   const assignForm = useForm({ defaultValues: { paddock_id: '', entry_date: new Date().toISOString().split('T')[0], entry_head_count: mob?.head_count || 0 } });
-  const exitForm = useForm({ defaultValues: { exit_date: new Date().toISOString().split('T')[0], exit_head_count: mob?.head_count || 0, exit_reason: 'moved' } });
-  const healthForm = useForm({ defaultValues: { date: new Date().toISOString().split('T')[0], head_count_affected: mob?.head_count || 0 } });
-  const weighForm = useForm({ defaultValues: { date: new Date().toISOString().split('T')[0], head_count_weighed: mob?.head_count || 0 } });
+  const exitForm = useForm({ defaultValues: { exit_date: new Date().toISOString().split('T')[0], exit_head_count: mob?.head_count || 0, exit_reason: 'moved', sale_price_per_head: '' } });
+  const healthForm = useForm({ defaultValues: { 
+    event_type: 'treatment',
+    date: new Date().toISOString().split('T')[0], 
+    product_used: '',
+    dose: '',
+    withholding_period_days: '',
+    whp_expiry_date: '',
+    head_count_affected: mob?.head_count || 0,
+    cost_amount: '',
+    notes: ''
+  } });
+  const weighForm = useForm({ defaultValues: { 
+    date: new Date().toISOString().split('T')[0], 
+    head_count_weighed: mob?.head_count || 0,
+    average_weight_kg: '',
+    notes: ''
+  } });
 
   const onPaddockClick = (paddockId: string) => {
-    if (mob.current_paddock_name) return; // Already assigned, maybe handle move logic later
+    if (!mob || mob.current_paddock_name) return; // Already assigned, maybe handle move logic later
     assignForm.setValue('paddock_id', paddockId);
     setAssignModal(true);
   };

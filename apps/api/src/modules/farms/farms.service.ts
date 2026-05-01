@@ -28,8 +28,14 @@ export class FarmsService {
   constructor(@Inject(DATABASE_POOL) private db: Pool) {}
 
   async findAll() {
-    const { rows } = await this.db.query('SELECT * FROM farms ORDER BY created_at DESC');
-    return rows;
+    console.log('FarmsService.findAll() called');
+    try {
+      const { rows } = await this.db.query('SELECT * FROM farms ORDER BY created_at DESC');
+      return rows;
+    } catch (err) {
+      console.error('FarmsService.findAll() error:', err);
+      throw err;
+    }
   }
 
   async findOne(id: string) {

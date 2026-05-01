@@ -33,19 +33,35 @@ export class TasksService {
   }
 
   async create(dto: any) {
-    const { rows } = await this.db.query(
-      `INSERT INTO tasks
-        (farm_id, paddock_id, title, description, task_type, priority, status,
-         assigned_to, assigned_to_name, due_date, estimated_hours, activity_id, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       RETURNING *`,
-      [dto.farm_id, dto.paddock_id ?? null, dto.title, dto.description ?? null,
-       dto.task_type ?? 'general', dto.priority ?? 'medium', dto.status ?? 'pending',
-       dto.assigned_to ?? null, dto.assigned_to_name ?? null, dto.due_date ?? null,
-       dto.estimated_hours ?? null, dto.activity_id ?? null, dto.notes ?? null,
-       dto.created_by ?? null],
-    );
-    return rows[0];
+    try {
+      const { rows } = await this.db.query(
+        `INSERT INTO tasks
+          (farm_id, paddock_id, title, description, task_type, priority, status,
+           assigned_to, assigned_to_name, due_date, estimated_hours, activity_id, notes, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         RETURNING *`,
+        [
+          dto.farm_id || null,
+          dto.paddock_id || null,
+          dto.title || null,
+          dto.description || null,
+          dto.task_type || 'general',
+          dto.priority || 'medium',
+          dto.status || 'pending',
+          dto.assigned_to || null,
+          dto.assigned_to_name || null,
+          dto.due_date || null,
+          dto.estimated_hours || null,
+          dto.activity_id || null,
+          dto.notes || null,
+          dto.created_by || null
+        ],
+      );
+      return rows[0];
+    } catch (err) {
+      console.error('Error creating task:', err);
+      throw err;
+    }
   }
 
   async update(id: string, dto: any) {
@@ -60,9 +76,19 @@ export class TasksService {
         completed_date=CASE WHEN $5='completed' THEN COALESCE(completed_date, CURRENT_DATE) ELSE completed_date END,
         updated_at=NOW()
        WHERE id=$11 RETURNING *`,
-      [dto.title, dto.description, dto.task_type, dto.priority,
-       dto.status, dto.assigned_to_name, dto.due_date, dto.estimated_hours,
-       dto.actual_hours, dto.notes, id],
+      [
+        dto.title || null,
+        dto.description || null,
+        dto.task_type || null,
+        dto.priority || null,
+        dto.status || null,
+        dto.assigned_to_name || null,
+        dto.due_date || null,
+        dto.estimated_hours || null,
+        dto.actual_hours || null,
+        dto.notes || null,
+        id
+      ],
     );
     return rows[0];
   }

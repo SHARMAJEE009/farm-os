@@ -59,15 +59,25 @@ export class ActivitiesService {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
        RETURNING *`,
       [
-        activity.farm_id, activity.paddock_id, activity.crop_plan_id ?? null,
-        activity.recommendation_id ?? null, activity.activity_type,
-        activity.status ?? 'planned', activity.planned_date ?? null,
-        activity.completed_date ?? null, activity.operator_name ?? null,
-        activity.equipment ?? null, activity.wind_speed_kmh ?? null,
-        activity.wind_direction ?? null, activity.temperature_c ?? null,
-        activity.humidity_pct ?? null, activity.area_applied_ha ?? null,
-        activity.water_rate_lha ?? null, activity.notes ?? null,
-        activity.cost_amount ?? null, activity.created_by ?? null,
+        activity.farm_id || null, 
+        activity.paddock_id || null, 
+        activity.crop_plan_id || null,
+        activity.recommendation_id || null, 
+        activity.activity_type || null,
+        activity.status || 'planned', 
+        activity.planned_date || null,
+        activity.completed_date || null, 
+        activity.operator_name || null,
+        activity.equipment || null, 
+        activity.wind_speed_kmh || null,
+        activity.wind_direction || null, 
+        activity.temperature_c || null,
+        activity.humidity_pct || null, 
+        activity.area_applied_ha || null,
+        activity.water_rate_lha || null, 
+        activity.notes || null,
+        activity.cost_amount || null, 
+        activity.created_by || null,
       ],
     );
 
@@ -77,8 +87,16 @@ export class ActivitiesService {
           `INSERT INTO activity_products
             (activity_id, product_id, product_name, rate, rate_unit, total_quantity, unit_cost, total_cost)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-          [rows[0].id, p.product_id ?? null, p.product_name, p.rate ?? null,
-           p.rate_unit ?? null, p.total_quantity ?? null, p.unit_cost ?? null, p.total_cost ?? null],
+          [
+            rows[0].id, 
+            p.product_id || null, 
+            p.product_name || null, 
+            p.rate || null,
+            p.rate_unit || null, 
+            p.total_quantity || null, 
+            p.unit_cost || null, 
+            p.total_cost || null
+          ],
         );
       }
     }
@@ -99,10 +117,21 @@ export class ActivitiesService {
         updated_at=NOW()
        WHERE id=$15 RETURNING *`,
       [
-        dto.activity_type, dto.status, dto.planned_date, dto.completed_date,
-        dto.operator_name, dto.equipment, dto.wind_speed_kmh, dto.wind_direction,
-        dto.temperature_c, dto.humidity_pct, dto.area_applied_ha, dto.water_rate_lha,
-        dto.notes, dto.cost_amount, id,
+        dto.activity_type || null, 
+        dto.status || null, 
+        dto.planned_date || null, 
+        dto.completed_date || null,
+        dto.operator_name || null, 
+        dto.equipment || null, 
+        dto.wind_speed_kmh || null, 
+        dto.wind_direction || null,
+        dto.temperature_c || null, 
+        dto.humidity_pct || null, 
+        dto.area_applied_ha || null, 
+        dto.water_rate_lha || null,
+        dto.notes || null, 
+        dto.cost_amount || null, 
+        id,
       ],
     );
     return rows[0];

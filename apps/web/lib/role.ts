@@ -29,7 +29,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 const ALL_PAGES = [
   '/dashboard', '/farms', '/paddocks', '/staff', '/livestock', '/team',
   '/crop-plans', '/activities', '/products', '/inventory', '/harvest',
-  '/tasks', '/agronomist', '/supplier', '/weather',
+  '/tasks', '/agronomist', '/soil-reports', '/supplier', '/weather',
   '/finance', '/forecasting', '/benchmarking', '/news', '/intelligence/ai-assistant',
 ];
 

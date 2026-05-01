@@ -28,10 +28,18 @@ export class InventoryService {
          reorder_level, location, batch_number, expiry_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
-      [dto.farm_id, dto.product_id ?? null, dto.product_name,
-       dto.category ?? 'chemical', dto.current_stock ?? 0, dto.unit ?? 'L',
-       dto.reorder_level ?? null, dto.location ?? null,
-       dto.batch_number ?? null, dto.expiry_date ?? null],
+      [
+        dto.farm_id || null, 
+        dto.product_id || null, 
+        dto.product_name || null,
+        dto.category || 'chemical', 
+        dto.current_stock ?? 0, 
+        dto.unit || 'L',
+        dto.reorder_level || null, 
+        dto.location || null,
+        dto.batch_number || null, 
+        dto.expiry_date || null
+      ],
     );
     return rows[0];
   }
@@ -46,8 +54,17 @@ export class InventoryService {
         batch_number=COALESCE($7,batch_number), expiry_date=COALESCE($8,expiry_date),
         last_updated=NOW()
        WHERE id=$9 RETURNING *`,
-      [dto.product_name, dto.category, dto.current_stock, dto.unit,
-       dto.reorder_level, dto.location, dto.batch_number, dto.expiry_date, id],
+      [
+        dto.product_name || null, 
+        dto.category || null, 
+        dto.current_stock || null, 
+        dto.unit || null,
+        dto.reorder_level || null, 
+        dto.location || null, 
+        dto.batch_number || null, 
+        dto.expiry_date || null, 
+        id
+      ],
     );
     return rows[0];
   }

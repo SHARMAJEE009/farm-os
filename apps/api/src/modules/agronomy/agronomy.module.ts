@@ -5,5 +5,6 @@ import { AgronomyService } from './agronomy.service';
 @Module({
   controllers: [AgronomyController],
   providers: [AgronomyService],
+  exports: [AgronomyService],
 })
 export class AgronomyModule {}

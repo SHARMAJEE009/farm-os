@@ -38,11 +38,21 @@ export class HarvestService {
          yield_unit, yield_per_ha, moisture_pct, grade, price_per_unit, total_revenue, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [dto.farm_id, dto.paddock_id, dto.crop_plan_id ?? null,
-       dto.harvest_date, dto.crop ?? null, dto.yield_total ?? null,
-       dto.yield_unit ?? 'tonnes', dto.yield_per_ha ?? null,
-       dto.moisture_pct ?? null, dto.grade ?? null,
-       dto.price_per_unit ?? null, dto.total_revenue ?? null, dto.notes ?? null],
+      [
+        dto.farm_id || null,
+        dto.paddock_id || null,
+        dto.crop_plan_id || null,
+        dto.harvest_date || null,
+        dto.crop || null,
+        dto.yield_total || null,
+        dto.yield_unit || 'tonnes',
+        dto.yield_per_ha || null,
+        dto.moisture_pct || null,
+        dto.grade || null,
+        dto.price_per_unit || null,
+        dto.total_revenue || null,
+        dto.notes || null
+      ],
     );
 
     // Update crop plan actual yield if linked
@@ -66,9 +76,18 @@ export class HarvestService {
         price_per_unit=COALESCE($7,price_per_unit), total_revenue=COALESCE($8,total_revenue),
         notes=COALESCE($9,notes)
        WHERE id=$10 RETURNING *`,
-      [dto.harvest_date, dto.crop, dto.yield_total, dto.yield_per_ha,
-       dto.moisture_pct, dto.grade, dto.price_per_unit, dto.total_revenue,
-       dto.notes, id],
+      [
+        dto.harvest_date || null,
+        dto.crop || null,
+        dto.yield_total || null,
+        dto.yield_per_ha || null,
+        dto.moisture_pct || null,
+        dto.grade || null,
+        dto.price_per_unit || null,
+        dto.total_revenue || null,
+        dto.notes || null,
+        id
+      ],
     );
     return rows[0];
   }

@@ -38,11 +38,21 @@ export class CropPlansService {
          estimated_cost_per_ha, sowing_date, harvest_date, status, notes)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
-      [dto.farm_id, dto.paddock_id, dto.season, dto.planned_crop ?? null,
-       dto.planned_variety ?? null, dto.target_yield_per_ha ?? null,
-       dto.target_yield_unit ?? 't/ha', dto.estimated_revenue_per_ha ?? null,
-       dto.estimated_cost_per_ha ?? null, dto.sowing_date ?? null,
-       dto.harvest_date ?? null, dto.status ?? 'planned', dto.notes ?? null],
+      [
+        dto.farm_id || null, 
+        dto.paddock_id || null, 
+        dto.season || null, 
+        dto.planned_crop || null,
+        dto.planned_variety || null, 
+        dto.target_yield_per_ha || null,
+        dto.target_yield_unit || 't/ha', 
+        dto.estimated_revenue_per_ha || null,
+        dto.estimated_cost_per_ha || null, 
+        dto.sowing_date || null,
+        dto.harvest_date || null, 
+        dto.status || 'planned', 
+        dto.notes || null
+      ],
     );
     return rows[0];
   }
@@ -61,11 +71,21 @@ export class CropPlansService {
         sowing_date=COALESCE($9,sowing_date), harvest_date=COALESCE($10,harvest_date),
         status=COALESCE($11,status), notes=COALESCE($12,notes), updated_at=NOW()
        WHERE id=$13 RETURNING *`,
-      [dto.season, dto.planned_crop, dto.planned_variety,
-       dto.target_yield_per_ha, dto.estimated_revenue_per_ha,
-       dto.estimated_cost_per_ha, dto.actual_yield_per_ha,
-       dto.actual_revenue_per_ha, dto.sowing_date, dto.harvest_date,
-       dto.status, dto.notes, id],
+      [
+        dto.season || null, 
+        dto.planned_crop || null, 
+        dto.planned_variety || null,
+        dto.target_yield_per_ha || null, 
+        dto.estimated_revenue_per_ha || null,
+        dto.estimated_cost_per_ha || null, 
+        dto.actual_yield_per_ha || null,
+        dto.actual_revenue_per_ha || null, 
+        dto.sowing_date || null, 
+        dto.harvest_date || null,
+        dto.status || null, 
+        dto.notes || null, 
+        id
+      ],
     );
     return rows[0];
   }

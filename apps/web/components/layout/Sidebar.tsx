@@ -27,6 +27,7 @@ import {
   ListChecks,
   CloudSun,
   Wheat,
+  Microscope,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -57,10 +58,11 @@ const navSections = [
   {
     label: 'Planning',
     items: [
-      { href: '/tasks',        label: 'Tasks',         icon: ListChecks },
-      { href: '/agronomist',   label: 'Agronomy',      icon: Leaf },
-      { href: '/supplier',     label: 'Supplier',      icon: ShoppingCart },
-      { href: '/weather',      label: 'Weather',       icon: CloudSun },
+      { href: '/tasks',         label: 'Tasks',          icon: ListChecks },
+      { href: '/agronomist',    label: 'Agronomy',       icon: Leaf },
+      { href: '/soil-reports',  label: 'Soil Reports',   icon: Microscope },
+      { href: '/supplier',      label: 'Supplier',       icon: ShoppingCart },
+      { href: '/weather',       label: 'Weather',        icon: CloudSun },
     ],
   },
   {

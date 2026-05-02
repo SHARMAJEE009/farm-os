@@ -136,4 +136,12 @@ export class AgronomyController {
   async getSoilReport(@Param('id') id: string) {
     return this.agronomyService.getSoilReportById(id);
   }
+
+  // ── Delete single Soil Report ──────────────────────────────────────────
+
+  @Delete('soil-reports/:id')
+  @Roles('agronomist', 'manager', 'owner')
+  async deleteSoilReport(@Param('id') id: string) {
+    return this.agronomyService.deleteSoilReport(id);
+  }
 }

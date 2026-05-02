@@ -180,4 +180,16 @@ export class AgronomyService {
       throw new InternalServerErrorException('Failed to update soil report');
     }
   }
+
+  async deleteSoilReport(id: string) {
+    try {
+      const { rowCount } = await this.pool.query('DELETE FROM soil_reports WHERE id = $1', [id]);
+      if (rowCount === 0) throw new NotFoundException('Soil report not found');
+      return { deleted: true };
+    } catch (err) {
+      if (err instanceof NotFoundException) throw err;
+      console.error('Error deleting soil report:', err);
+      throw new InternalServerErrorException('Failed to delete soil report');
+    }
+  }
 }

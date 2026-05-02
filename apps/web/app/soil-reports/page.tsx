@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFarm } from '@/lib/farm-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Sparkles, Eye, Loader2, MapPin, Sprout, Calendar,
-  FileText, User, Leaf, Building2
+  FileText, User, Leaf, Building2, Trash2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
@@ -43,6 +43,7 @@ export default function SoilReportsPage() {
   const { activeFarmId } = useFarm();
   const role = getRole();
   const isOwner = role === 'owner';
+  const isAgronomist = role === 'agronomist';
 
   const [selectedFarmFilter, setSelectedFarmFilter] = useState(activeFarmId || '');
   const [panelOpen, setPanelOpen] = useState(false);
@@ -75,9 +76,10 @@ export default function SoilReportsPage() {
     try {
       await api.post(`/recommendations/generate/${reportId}`);
       qc.invalidateQueries({ queryKey: ['soil-reports'] });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Generation failed:', err);
-      alert('Failed to generate AI recommendation. Please try again.');
+      const msg = err.response?.data?.message || err.message;
+      alert(`Failed to generate AI recommendation: ${msg}`);
     } finally {
       setGeneratingId(null);
     }
@@ -95,7 +97,25 @@ export default function SoilReportsPage() {
     }
   };
 
+  // Delete soil report
+  const handleDelete = async (reportId: string) => {
+    if (!confirm('Are you sure you want to delete this soil report?')) return;
+    try {
+      await api.delete(`/agronomy/soil-reports/${reportId}`);
+      qc.invalidateQueries({ queryKey: ['soil-reports'] });
+      qc.invalidateQueries({ queryKey: ['my-soil-uploads'] });
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      alert('Failed to delete soil report. Please try again.');
+    }
+  };
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const farmName = farms?.find(f => f.id === farmIdToFetch)?.name || 'All Farms';
+
+  if (!mounted) return <AppLayout><div className="min-h-screen"></div></AppLayout>;
 
   return (
     <AppLayout>
@@ -108,9 +128,9 @@ export default function SoilReportsPage() {
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Farms
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="w-10 h-10 bg-farm-100 rounded-xl flex items-center justify-center">
+              <span className="w-10 h-10 bg-farm-100 rounded-xl flex items-center justify-center">
                 <FileText className="w-5 h-5 text-farm-600" />
-              </div>
+              </span>
               Soil Reports {!isOwner && `— ${farmName}`}
             </h1>
             <p className="text-sm text-gray-500 mt-1">Review soil analyses and generate AI recommendations</p>
@@ -161,7 +181,18 @@ export default function SoilReportsPage() {
                         </p>
                       )}
                     </div>
-                    <StatusBadge status={report.status} />
+                    <div className="flex items-center gap-3">
+                      {isAgronomist && (
+                        <button 
+                          onClick={() => handleDelete(report.id)} 
+                          title="Delete report"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <StatusBadge status={report.status} />
+                    </div>
                   </div>
 
                   {/* Details */}

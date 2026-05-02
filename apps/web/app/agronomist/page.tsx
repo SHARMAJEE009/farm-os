@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useFarm } from '@/lib/farm-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Leaf, Upload, FileText, Calendar, Map, Sprout,
-  CheckCircle, Clock, AlertCircle, XCircle, Loader2, X
+  CheckCircle, Clock, AlertCircle, XCircle, Loader2, X, Trash2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
@@ -92,6 +92,19 @@ export default function AgronomistPage() {
     },
   });
 
+  const handleDelete = async (reportId: string) => {
+    if (!confirm('Are you sure you want to delete this soil report?')) return;
+    try {
+      await api.delete(`/agronomy/soil-reports/${reportId}`);
+      qc.invalidateQueries({ queryKey: ['my-soil-uploads'] });
+      qc.invalidateQueries({ queryKey: ['soil-reports'] });
+    } catch (err: any) {
+      console.error('Failed to delete report:', err);
+      const msg = err.response?.data?.message || err.message;
+      alert(`Failed to delete soil report: ${msg}`);
+    }
+  };
+
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedFarmId('');
@@ -117,6 +130,11 @@ export default function AgronomistPage() {
     }
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return <AppLayout><div className="min-h-screen"></div></AppLayout>;
+
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -124,9 +142,9 @@ export default function AgronomistPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="w-10 h-10 bg-farm-100 rounded-xl flex items-center justify-center">
+              <span className="w-10 h-10 bg-farm-100 rounded-xl flex items-center justify-center">
                 <Leaf className="w-5 h-5 text-farm-600" />
-              </div>
+              </span>
               My Soil Reports
             </h1>
             <p className="text-sm text-gray-500 mt-1">Upload and track your soil analysis reports</p>
@@ -154,6 +172,7 @@ export default function AgronomistPage() {
                     <th className="text-left px-5 py-3 font-semibold text-gray-700">File Name</th>
                     <th className="text-left px-5 py-3 font-semibold text-gray-700">Upload Date</th>
                     <th className="text-left px-5 py-3 font-semibold text-gray-700">Status</th>
+                    <th className="text-right px-5 py-3 font-semibold text-gray-700">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,6 +194,15 @@ export default function AgronomistPage() {
                       </td>
                       <td className="px-5 py-4 text-gray-500 text-xs">{formatDate(report.created_at)}</td>
                       <td className="px-5 py-4"><StatusBadge status={report.status} /></td>
+                      <td className="px-5 py-4 text-right">
+                        <button 
+                          onClick={() => handleDelete(report.id)} 
+                          title="Delete report"
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors inline-flex"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

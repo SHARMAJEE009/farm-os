@@ -175,7 +175,7 @@ Required JSON structure:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: pdfText },
@@ -262,13 +262,13 @@ export class RecommendationsController {
   // ── AI Soil Recommendation endpoints ────────────────────────────────
 
   @Post('generate/:soilReportId')
-  @Roles('manager', 'owner')
+  @Roles('agronomist', 'manager', 'owner')
   async generateRecommendation(@Param('soilReportId') soilReportId: string) {
     return this.aiService.generateRecommendation(soilReportId);
   }
 
   @Get('view/:soilReportId')
-  @Roles('manager', 'owner')
+  @Roles('agronomist', 'manager', 'owner')
   async viewRecommendation(@Param('soilReportId') soilReportId: string) {
     return this.aiService.viewRecommendation(soilReportId);
   }
